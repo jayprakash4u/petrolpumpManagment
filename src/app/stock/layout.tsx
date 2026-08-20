@@ -5,7 +5,7 @@ export default async function StockLayout({ children }: LayoutProps<"/stock">) {
   const user = await requireUser();
 
   return (
-    <DashboardShell activeHref="/stock" title="Tank & Stock" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Tank & Stock" userName={user.name} userRole={user.role}>
       {children}
     </DashboardShell>
   );

@@ -251,6 +251,11 @@ model Sale {
   soldBy        User          @relation(fields: [soldById], references: [id])
   createdAt     DateTime      @default(now())
 
+  /// Vehicle the fuel went into, normalised (see src/lib/vehicle.ts).
+  /// Optional because a walk-in with a jerry can has no plate, but it is what
+  /// makes vehicle-wise billing and the VCTS consignment records possible.
+  vehicleNo String?
+
   voided     Boolean   @default(false)
   voidedAt   DateTime?
   voidReason String?
@@ -258,6 +263,8 @@ model Sale {
   @@unique([stationId, receiptNo])
   @@index([stationId, createdAt])
   @@index([customerId])
+  /// Vehicle-wise billing filters on this; without it the lookup is a table scan.
+  @@index([stationId, vehicleNo])
 }
 
 model Purchase {

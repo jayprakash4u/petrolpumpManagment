@@ -5,7 +5,7 @@ export default async function EmployeesLayout({ children }: LayoutProps<"/employ
   const user = await requireUser();
 
   return (
-    <DashboardShell activeHref="/employees" title="Employees" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Employees" userName={user.name} userRole={user.role}>
       {children}
     </DashboardShell>
   );

@@ -1,24 +1,27 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import type { Role } from "@prisma/client";
 
 export function DashboardShell({
-  activeHref,
   title,
   userName,
   userRole,
   children,
 }: {
-  activeHref: string;
   title: string;
   userName: string;
   userRole: Role;
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Derived here rather than passed in by every layout: a sub-page like
+  // /sales/bills must highlight its own row, and a layout one level up cannot
+  // know which child is being viewed.
+  const activeHref = usePathname();
 
   return (
     <div className="flex min-h-screen bg-bg">

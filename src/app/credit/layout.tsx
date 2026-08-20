@@ -5,7 +5,7 @@ export default async function CreditLayout({ children }: LayoutProps<"/credit">)
   const user = await requireUser();
 
   return (
-    <DashboardShell activeHref="/credit" title="Credit Customers" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Credit Customers" userName={user.name} userRole={user.role}>
       {children}
     </DashboardShell>
   );
