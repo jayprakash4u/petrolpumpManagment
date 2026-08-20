@@ -1,0 +1,19 @@
+# Local Postgres for when you're ready to move off the SQLite dev default.
+# Usage: docker compose up -d
+# Then set DATABASE_URL="postgresql://fuel:fuel@localhost:5432/fuelstation?schema=public"
+# and switch `provider` to "postgresql" in prisma/schema.prisma (see README).
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fuel
+      POSTGRES_PASSWORD: fuel
+      POSTGRES_DB: fuelstation
+    ports:
+      - "5432:5432"
+    volumes:
+      - fuelstation_pgdata:/var/lib/postgresql/data
+
+volumes:
+  fuelstation_pgdata:

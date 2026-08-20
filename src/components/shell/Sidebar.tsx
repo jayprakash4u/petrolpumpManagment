@@ -1,0 +1,148 @@
+import Link from "next/link";
+import { Fuel, ChevronRight } from "lucide-react";
+import { NAV, type NavItem } from "./nav";
+import { can } from "@/lib/permissions";
+import type { Role } from "@prisma/client";
+
+/**
+ * A section is dropped entirely when a role can see none of its items, so an
+ * attendant gets a short, honest menu instead of a wall of headings with
+ * nothing underneath them.
+ */
+function visibleItems(items: NavItem[], role: Role): NavItem[] {
+  return items
+    .filter((item) => !item.permission || can(role, item.permission))
+    .map((item) => (item.children ? { ...item, children: visibleItems(item.children, role) } : item))
+    // A parent whose children a role cannot see is not worth showing either.
+    .filter((item) => !item.children || item.children.length > 0);
+}
+
+/** True when this item, or any of its children, is the page being viewed. */
+function containsActive(item: NavItem, activeHref: string): boolean {
+  if (item.children) return item.children.some((child) => child.href === activeHref);
+  return item.href === activeHref;
+}
+
+const rowBase = "font-display flex items-center gap-3 rounded-[9px] px-3 py-2 text-[13px] transition-colors";
+const rowIdle = "font-medium text-text-muted hover:bg-white/5 hover:text-text";
+const rowActive = "bg-accent/10 font-semibold text-accent";
+const rowDisabled = "font-medium text-text-muted/40 cursor-not-allowed";
+
+function DisabledRow({ item, inset }: { item: NavItem; inset?: boolean }) {
+  return (
+    <span
+      aria-disabled="true"
+      className={`${rowBase} ${rowDisabled} ${inset ? "pl-9" : ""}`}
+      title={item.soonNote ?? "Coming soon"}
+    >
+      <item.icon size={inset ? 14 : 16} />
+      <span className="truncate">{item.label}</span>
+      <span className="font-data ml-auto shrink-0 text-[9px] tracking-wide text-text-muted/40">SOON</span>
+    </span>
+  );
+}
+
+function LinkRow({ item, activeHref, inset }: { item: NavItem; activeHref: string; inset?: boolean }) {
+  const isActive = item.href === activeHref;
+  return (
+    <Link
+      href={item.href}
+      aria-current={isActive ? "page" : undefined}
+      className={`${rowBase} ${isActive ? rowActive : rowIdle} ${inset ? "pl-9" : ""}`}
+    >
+      <item.icon size={inset ? 14 : 16} />
+      <span className="truncate">{item.label}</span>
+    </Link>
+  );
+}
+
+/**
+ * A module with sub-pages.
+ *
+ * Built on native <details>/<summary> rather than React state: it expands
+ * without client JavaScript, is keyboard accessible for free, and cannot
+ * produce a hydration mismatch. It opens by default when the page being
+ * viewed lives inside it, so a reader never has to hunt for where they are.
+ */
+function ExpandableRow({ item, activeHref }: { item: NavItem; activeHref: string }) {
+  const open = containsActive(item, activeHref);
+  // When nothing inside a module is built yet, say so on the parent rather
+  // than making someone expand it to discover seven greyed-out rows.
+  const allUnbuilt = item.children!.every((child) => !child.enabled);
+
+  return (
+    <details open={open} className="group">
+      <summary
+        // The webkit selector is needed as well as list-none: Safari draws its
+        // own disclosure triangle that `list-style` alone does not remove.
+        className={`${rowBase} cursor-pointer list-none marker:content-none [&::-webkit-details-marker]:hidden ${
+          allUnbuilt ? "font-medium text-text-muted/40" : open ? "font-semibold text-text" : rowIdle
+        }`}
+      >
+        <item.icon size={16} />
+        <span className="truncate">{item.label}</span>
+        {allUnbuilt && (
+          <span className="font-data ml-auto shrink-0 text-[9px] tracking-wide text-text-muted/40">SOON</span>
+        )}
+        <ChevronRight
+          size={14}
+          className={`${allUnbuilt ? "ml-1.5" : "ml-auto"} shrink-0 transition-transform duration-150 group-open:rotate-90`}
+        />
+      </summary>
+
+      <div className="mt-0.5 flex flex-col gap-0.5 border-l border-border pl-1.5 ml-[19px]">
+        {item.children!.map((child) =>
+          child.enabled ? (
+            <LinkRow key={child.href} item={child} activeHref={activeHref} inset />
+          ) : (
+            <DisabledRow key={child.href} item={child} inset />
+          )
+        )}
+      </div>
+    </details>
+  );
+}
+
+export function SidebarContent({ activeHref, role }: { activeHref: string; role: Role }) {
+  const sections = NAV.map((section) => ({ ...section, items: visibleItems(section.items, role) })).filter(
+    (section) => section.items.length > 0
+  );
+
+  return (
+    <>
+      <div className="mb-7 flex items-center gap-2.5 px-2">
+        <div className="flex h-[34px] w-[34px] items-center justify-center rounded-lg bg-accent">
+          <Fuel size={18} color="#1A1306" />
+        </div>
+        <div className="font-display text-[15.5px] leading-tight font-bold text-text">
+          Shree Petroleum
+          <div className="font-data text-[11px] font-normal text-text-muted">STATION CONTROL</div>
+        </div>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto pb-4">
+        {sections.map((section) => (
+          <div key={section.label} className="flex flex-col gap-0.5">
+            <div className="font-data mb-1 px-3 text-[10px] tracking-[0.12em] text-text-muted/50">
+              {section.label.toUpperCase()}
+            </div>
+
+            {section.items.map((item) => {
+              if (item.children) return <ExpandableRow key={item.href} item={item} activeHref={activeHref} />;
+              if (!item.enabled) return <DisabledRow key={item.href} item={item} />;
+              return <LinkRow key={item.href} item={item} activeHref={activeHref} />;
+            })}
+          </div>
+        ))}
+      </nav>
+    </>
+  );
+}
+
+export function Sidebar({ activeHref, role }: { activeHref: string; role: Role }) {
+  return (
+    <aside className="hidden h-screen w-[232px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px] md:sticky md:top-0 md:flex">
+      <SidebarContent activeHref={activeHref} role={role} />
+    </aside>
+  );
+}

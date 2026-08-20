@@ -1,0 +1,321 @@
+// Fuel Station Manager — database schema
+//
+// Money and volume are stored as fixed-point Decimal (Postgres NUMERIC), never
+// float, so totals reconcile exactly. Every mutation that touches stock, cash,
+// or credit balances happens inside a DB transaction (see src/lib/actions/*)
+// and is mirrored into AuditLog for traceability.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Local dev uses SQLite (zero-config, file-based) so the app runs
+  // immediately with no server to install. For production, switch this to
+  // "postgresql" (recommended) or "sqlserver" and point DATABASE_URL at a
+  // real server — the Decimal fields below work unchanged; optionally add
+  // back precision, e.g. `@db.Decimal(12, 3)`, once on a provider that
+  // supports native decimal types. See README "Switching databases".
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER // full control: users, rates, everything
+  MANAGER // rates, purchases, customers, reports — not user management
+  CASHIER // sales, credit payments, own shift
+  ATTENDANT // sales, own shift only
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  CNG
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT
+}
+
+/// A single station. Modeled explicitly (rather than assuming one global
+/// station) so the schema doesn't need reshaping if a second location is
+/// added later — auth and queries are already scoped by stationId.
+/// A platform operator — the people who run this SaaS, not the people who run
+/// a petrol pump.
+///
+/// Deliberately a SEPARATE TABLE rather than another value in `Role`. If
+/// "platform admin" were a Role, a station owner could hand it out with the
+/// ordinary role-change form (src/lib/actions/users.ts) and escalate from
+/// their own tenant to every tenant. There is no code path between this table
+/// and `User`, so that promotion cannot be expressed at all.
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  /// The login credential. Globally unique: platform accounts live above
+  /// tenancy, so unlike `User.username` there is no station to scope them to.
+  username     String   @unique
+  /// Optional contact detail only — not used to sign in.
+  email        String?
+  name         String
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions  PlatformSession[]
+  auditLogs PlatformAuditLog[]
+}
+
+/// Sessions for the platform plane. A separate table *and* a separate cookie
+/// from `Session`, so a tenant session can never be mistaken for an operator
+/// session (or upgraded into one) by any code that reads only one of them.
+model PlatformSession {
+  id        String    @id @default(cuid())
+  adminId   String
+  admin     PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+
+  @@index([adminId])
+}
+
+/// Append-only trail of operator actions. Kept apart from `AuditLog`, which
+/// belongs to a tenant and is scoped by stationId — these events are about
+/// tenants, and some (creating one) happen before a station exists.
+model PlatformAuditLog {
+  id         String        @id @default(cuid())
+  actorId    String?
+  actor      PlatformAdmin? @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime      @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model Station {
+  id String @id @default(cuid())
+  /// Short, stable, human-typeable tenant code ("shree-petroleum"). It is
+  /// what a member of staff types at login to say *which* pump they work at,
+  /// and the only globally unique identifier a tenant exposes. Kept separate
+  /// from `name` so a station can be renamed without breaking every login.
+  slug          String   @unique
+  name    String
+  address String
+  /// Set when the platform suspends this tenant (non-payment, abuse). While
+  /// set, nobody at the station can sign in, and every live session was
+  /// revoked at the moment of suspension. Nullable rather than a boolean so
+  /// the trail records *when* it happened.
+  suspendedAt     DateTime?
+  suspendedReason String?
+  createdAt       DateTime  @default(now())
+  /// Monotonically increasing counter used to mint sequential, gap-free
+  /// receipt numbers per station (incremented atomically inside the sale
+  /// transaction — see src/lib/actions/sales.ts).
+  nextReceiptNo Int      @default(1)
+
+  users     User[]
+  tanks     Tank[]
+  customers Customer[]
+  sales     Sale[]
+  purchases Purchase[]
+  auditLogs AuditLog[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  stationId      String
+  station        Station   @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  name           String
+  /// The login credential. Unique *per station*, not globally — see the
+  /// @@unique below.
+  username       String
+  /// Optional contact detail only — NOT a credential. Many pump staff have no
+  /// work email, and requiring one produced addresses nobody reads and nobody
+  /// can recover a password through.
+  email          String?
+  passwordHash   String
+  role           Role
+  active         Boolean   @default(true)
+  onShift        Boolean   @default(false)
+  shiftStartedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sessions         Session[]
+  sales            Sale[]
+  purchases        Purchase[]        @relation("PurchaseRecordedBy")
+  payments         CustomerPayment[] @relation("PaymentRecordedBy")
+  rateChanges      FuelRateHistory[] @relation("RateChangedBy")
+  auditLogs        AuditLog[]
+  shifts           Shift[]
+  endedShiftsAdmin Shift[]           @relation("ShiftEndedBy")
+
+  /// Tenancy boundary for identity. A global unique would mean one person
+  /// could only ever work at one station in the entire system, and — worse —
+  /// would let any station owner probe whether a username is taken somewhere
+  /// else by watching "already exists" errors. Scoping it per station removes
+  /// both problems; logins are resolved by (station code, username), never by
+  /// username alone.
+  @@unique([stationId, username])
+  @@index([stationId])
+}
+
+/// Server-side session record. The httpOnly cookie carries a signed JWT whose
+/// only job is to name this row (jti) — the row itself is the source of
+/// truth, so revoking a user's sessions (deactivation, role change, logout)
+/// takes effect immediately instead of waiting out a stateless token's TTL.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+
+  @@index([userId])
+}
+
+model Tank {
+  id          String   @id @default(cuid())
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  fuel        FuelType
+  capacityL   Decimal
+  levelL      Decimal
+  openingL    Decimal
+  ratePerL    Decimal
+  lowStockPct Decimal  @default(20)
+  updatedAt   DateTime @updatedAt
+
+  sales       Sale[]
+  purchases   Purchase[]
+  rateHistory FuelRateHistory[]
+
+  @@unique([stationId, fuel])
+}
+
+model FuelRateHistory {
+  id          String   @id @default(cuid())
+  tankId      String
+  tank        Tank     @relation(fields: [tankId], references: [id], onDelete: Restrict)
+  oldRate     Decimal
+  newRate     Decimal
+  changedById String
+  changedBy   User     @relation("RateChangedBy", fields: [changedById], references: [id])
+  changedAt   DateTime @default(now())
+
+  @@index([tankId])
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  name        String
+  phone       String?
+  creditLimit Decimal  @default(0)
+  dueAmount   Decimal  @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  sales    Sale[]
+  payments CustomerPayment[]
+
+  @@index([stationId])
+}
+
+model Sale {
+  id            String        @id @default(cuid())
+  receiptNo     Int
+  stationId     String
+  station       Station       @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  tankId        String
+  tank          Tank          @relation(fields: [tankId], references: [id])
+  fuel          FuelType
+  liters        Decimal
+  ratePerL      Decimal
+  totalAmount   Decimal
+  paymentMethod PaymentMethod
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  soldById      String
+  soldBy        User          @relation(fields: [soldById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  voided     Boolean   @default(false)
+  voidedAt   DateTime?
+  voidReason String?
+
+  @@unique([stationId, receiptNo])
+  @@index([stationId, createdAt])
+  @@index([customerId])
+}
+
+model Purchase {
+  id           String   @id @default(cuid())
+  stationId    String
+  station      Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  tankId       String
+  tank         Tank     @relation(fields: [tankId], references: [id])
+  fuel         FuelType
+  liters       Decimal
+  totalCost    Decimal
+  supplier     String
+  invoiceNo    String?
+  recordedById String
+  recordedBy   User     @relation("PurchaseRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([stationId, createdAt])
+}
+
+model CustomerPayment {
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  amount       Decimal
+  recordedById String
+  recordedBy   User     @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Shift {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  endedById String?
+  endedBy   User?     @relation("ShiftEndedBy", fields: [endedById], references: [id])
+
+  @@index([userId])
+}
+
+/// Append-only trail for every state-changing action. Never updated or
+/// deleted by application code.
+model AuditLog {
+  id         String   @id @default(cuid())
+  stationId  String
+  station    Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([stationId, createdAt])
+  @@index([entityType, entityId])
+}

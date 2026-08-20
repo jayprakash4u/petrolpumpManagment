@@ -1,0 +1,12 @@
+import { requireUser } from "@/lib/dal";
+import { DashboardShell } from "@/components/shell/DashboardShell";
+
+export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
+  const user = await requireUser();
+
+  return (
+    <DashboardShell activeHref="/dashboard" title="Dashboard" userName={user.name} userRole={user.role}>
+      {children}
+    </DashboardShell>
+  );
+}
