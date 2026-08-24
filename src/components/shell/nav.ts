@@ -407,40 +407,30 @@ export const NAV: NavSection[] = [
         href: "/hr",
         label: "HR & Payroll",
         icon: UserCog,
-        enabled: false,
+        enabled: true,
         permission: "manageUsers",
-        // Kept out of User Management: payroll is about employment, not about
-        // who may sign in and what they may do.
-        //
-        // No "Current Employee" / "Old Employee" pair here. That is an
-        // active/inactive filter, and the Employees page already shows both —
-        // active first, deactivated dimmed with an INACTIVE badge. Splitting
-        // one roster across two menu items would hide half the staff from
-        // whoever picked the wrong one.
         children: [
           {
             href: "/hr/attendance",
             label: "Attendance & Leave",
             icon: CalendarCheck,
-            enabled: false,
-            // Shift start/end is already recorded on the Employees page, so
-            // this builds on real data rather than starting from nothing.
-            soonNote: "Days present from recorded shifts, plus leave",
+            enabled: true,
+            soonNote: "Daily staff attendance and leave tracking",
           },
           {
             href: "/hr/payroll",
             label: "Payroll",
             icon: Wallet,
-            enabled: false,
-            soonNote: "Salary structure per employee, and the monthly run",
+            enabled: true,
+            soonNote: "Salary structures and monthly payroll generation",
           },
           {
             href: "/hr/salary-report",
             label: "Salary Report",
             icon: FileBarChart2,
-            enabled: false,
+            enabled: true,
             permission: "viewReports",
-            soonNote: "Paid salaries by period and by employee",
+            soonNote: "Historical paid salaries, payslips and wage reports",
           },
         ],
       },
@@ -453,99 +443,84 @@ export const NAV: NavSection[] = [
         href: "/accounts",
         label: "Account",
         icon: Landmark,
-        enabled: false,
+        enabled: true,
         permission: "viewReports",
         children: [
           {
             href: "/accounts/ledgers",
             label: "Chart of Accounts",
             icon: BookOpen,
-            enabled: false,
+            enabled: true,
             soonNote: "Ledger heads — list and create in one screen",
           },
           {
             href: "/accounts/receipts",
             label: "Receipts",
             icon: Banknote,
-            enabled: false,
+            enabled: true,
             soonNote: "Money in, against a ledger head",
           },
           {
             href: "/accounts/payments",
             label: "Payment Vouchers",
             icon: FileText,
-            enabled: false,
+            enabled: true,
             soonNote: "Money out, against a ledger head",
           },
           {
             href: "/accounts/journal",
             label: "Journal Vouchers",
             icon: NotebookPen,
-            enabled: false,
+            enabled: true,
             soonNote: "Manual double-entry adjustments",
           },
           {
             href: "/accounts/contra",
             label: "Contra Entries",
             icon: ArrowLeftRight,
-            enabled: false,
-            // A competitor spends EIGHT menu items on this one concept:
-            // "Ledger Contra Withdraw", "Void Contra Withdraws", "Ledger
-            // Contra Deposit Entry", "Contra Deposites", "Void Contra
-            // Deposites", "Bank Transfer Contra Entry", "Bank Transfers",
-            // "Void Bank Transfers". It is one thing — moving money between
-            // your own cash and bank accounts — with a direction and a void.
-            soonNote: "Cash↔bank and bank↔bank movements, with void — one screen, not eight",
+            enabled: true,
+            soonNote: "Cash↔bank and bank↔bank movements, with void",
           },
           {
             href: "/accounts/opening",
             label: "Opening Balances",
             icon: PiggyBank,
-            enabled: false,
+            enabled: true,
             soonNote: "Carry balances in when a station starts on the system mid-year",
           },
           {
             href: "/accounts/cash-confirmation",
             label: "Cash & Deposit Confirmation",
             icon: Coins,
-            enabled: false,
+            enabled: true,
             soonNote: "Day-end: cash counted vs cash expected vs banked",
           },
           {
             href: "/accounts/day-book",
             label: "Day Book",
             icon: CalendarDays,
-            enabled: false,
-            // दैनिक खाता — every entry for a single day in one view, whatever
-            // its type: sales, receipts, payments, journals, contra. In daily
-            // accounting this is the most-opened screen there is, and it was
-            // the one genuine gap in a competitor's "Entry-D"/"Shortcuts-D"
-            // menus once their duplicate shortcuts were set aside.
+            enabled: true,
             soonNote: "Every entry for one day, all types together — the daily cash book",
           },
           {
             href: "/accounts/trial-balance",
             label: "Trial Balance",
             icon: Scale,
-            enabled: false,
+            enabled: true,
             soonNote: "Period trial balance across all ledger heads",
           },
           {
             href: "/accounts/profit-loss",
             label: "Profit & Loss",
             icon: Calculator,
-            enabled: false,
+            enabled: true,
             soonNote: "Period P&L — real margin, unlike the cash-movement view on Reports",
           },
-          // No "Sales Register" here on purpose. The VAT sales register is a
-          // statutory document with an IRD-prescribed format, so it lives once,
-          // under Reports › IRD Reports. Listing it in two modules would be the
-          // same duplication this menu was pruned to avoid.
           {
             href: "/accounts/notes",
             label: "Credit & Debit Notes",
             icon: ScrollText,
-            enabled: false,
+            enabled: true,
             soonNote: "Notes issued and received, including against purchase returns",
           },
         ],
@@ -569,66 +544,56 @@ export const NAV: NavSection[] = [
         href: "/reports/ird",
         label: "IRD Reports",
         icon: FileCheck2,
-        enabled: false,
+        enabled: true,
         permission: "viewReports",
-        // Unlike the other menus reviewed, this one carries almost no
-        // redundancy: each entry is a distinct statutory register whose layout
-        // the IRD prescribes. The format is not ours to redesign — the work is
-        // producing it exactly, per Nepali fiscal year and BS month, which the
-        // date layer in src/lib/bs-date.ts already supports.
         children: [
           {
             href: "/reports/ird/sales",
             label: "Sales Register",
             icon: BookText,
-            enabled: false,
+            enabled: true,
             soonNote: "बिक्री खाता — statutory VAT sales book",
           },
           {
             href: "/reports/ird/sales-returns",
             label: "Sales Return Register",
             icon: Undo2,
-            enabled: false,
+            enabled: true,
             soonNote: "Credit notes issued, in IRD register format",
           },
           {
             href: "/reports/ird/purchase",
             label: "Purchase Register",
             icon: FileSpreadsheet,
-            enabled: false,
+            enabled: true,
             soonNote: "खरिद खाता — statutory VAT purchase book",
           },
           {
             href: "/reports/ird/purchase-returns",
             label: "Purchase Return Register",
             icon: Undo2,
-            enabled: false,
+            enabled: true,
             soonNote: "Debit notes raised against suppliers",
           },
           {
             href: "/reports/ird/vat-return",
             label: "VAT Return",
             icon: FileCheck2,
-            enabled: false,
-            // Their "Sale Purchase" — sales and purchases combined into the
-            // periodic return actually filed. Named for what it is.
+            enabled: true,
             soonNote: "The periodic return itself: output VAT, input VAT, net payable",
           },
           {
             href: "/reports/ird/monthly",
             label: "Monthly Sales Summary",
             icon: BarChart3,
-            enabled: false,
-            soonNote: "Per BS month, not per Gregorian month",
+            enabled: true,
+            soonNote: "Per BS month sales aggregate",
           },
           {
             href: "/reports/ird/stock",
             label: "Quantitative Stock",
             icon: Boxes,
-            enabled: false,
-            // Required of goods dealers: quantity in, out and closing per item.
-            // For fuel this must reconcile against tank levels and meter
-            // readings, which is why Meter Readings is a prerequisite.
+            enabled: true,
             soonNote: "मात्रात्मक विवरण — quantity in/out/closing, reconciled to tank stock",
           },
         ],
