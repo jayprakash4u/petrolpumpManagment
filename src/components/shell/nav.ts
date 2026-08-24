@@ -161,7 +161,7 @@ export const NAV: NavSection[] = [
         href: "/meter",
         label: "Meter Report",
         icon: Gauge,
-        enabled: false,
+        enabled: true,
         // Their three items collapse the two *different* measurements into
         // near-identical labels ("Meter Reading Lists", "Physical Readings",
         // "Physical Reading Lists"). The distinction is the whole point of the
@@ -171,7 +171,7 @@ export const NAV: NavSection[] = [
             href: "/meter/nozzle",
             label: "Nozzle Readings",
             icon: Gauge,
-            enabled: false,
+            enabled: true,
             // What the dispenser totaliser says was pumped.
             soonNote: "Opening and closing totaliser per nozzle, per shift",
           },
@@ -179,7 +179,7 @@ export const NAV: NavSection[] = [
             href: "/meter/dip",
             label: "Tank Dip Readings",
             icon: Ruler,
-            enabled: false,
+            enabled: true,
             permission: "manageOtherShifts",
             // What is physically in the tank, measured by dipstick. NOT the
             // same number as the nozzle total, and the gap between them is
@@ -191,7 +191,7 @@ export const NAV: NavSection[] = [
             href: "/meter/reconciliation",
             label: "Shift Reconciliation",
             icon: ArrowRightLeft,
-            enabled: false,
+            enabled: true,
             permission: "viewReports",
             // The daily operational check, run by a manager at shift close.
             // Gated because it shows cash variance and shortfall — telling the
@@ -205,56 +205,56 @@ export const NAV: NavSection[] = [
         href: "/purchases",
         label: "Purchase",
         icon: Truck,
-        enabled: false,
+        enabled: true,
         permission: "recordPurchase",
         children: [
           {
             href: "/purchases/suppliers",
             label: "Suppliers",
             icon: Contact,
-            enabled: false,
+            enabled: true,
             soonNote: "Supplier directory — add and edit in one place, not two menu items",
           },
           {
             href: "/purchases/fuel",
             label: "Fuel Purchases",
             icon: Truck,
-            enabled: false,
+            enabled: true,
             soonNote: "Full delivery ledger. Recording a delivery already works under Tank & Stock",
           },
           {
             href: "/purchases/items",
             label: "Other Items",
             icon: Package,
-            enabled: false,
+            enabled: true,
             soonNote: "Non-fuel stock: lubricants, spares, consumables",
           },
           {
             href: "/purchases/returns",
             label: "Purchase Returns",
             icon: Undo2,
-            enabled: false,
+            enabled: true,
             soonNote: "Returns to a supplier, including voided ones",
           },
           {
             href: "/purchases/expenses",
             label: "Expenses",
             icon: Wallet,
-            enabled: false,
+            enabled: true,
             soonNote: "Operating expenses against the day book",
           },
           {
             href: "/purchases/assets",
             label: "Fixed Assets",
             icon: Warehouse,
-            enabled: false,
+            enabled: true,
             soonNote: "Capital purchases: dispensers, tanks, vehicles",
           },
           {
             href: "/purchases/report",
             label: "Purchase Report",
             icon: FileBarChart2,
-            enabled: false,
+            enabled: true,
             permission: "viewReports",
             // One report with a fuel filter. A competitor ships five separate
             // menu items for this — "Diesel Purchase Report", "Petrol Purchase
@@ -276,7 +276,7 @@ export const NAV: NavSection[] = [
         href: "/coupons",
         label: "Coupon Management",
         icon: Ticket,
-        enabled: false,
+        enabled: true,
         permission: "manageCustomers",
         // A competitor spends 13 items here, including "All coupons" AND
         // "List Coupons", and "Used Sub Coupons" AND "Used Subcoupon" — the
@@ -287,7 +287,7 @@ export const NAV: NavSection[] = [
             href: "/coupons/issue",
             label: "Issue Coupons",
             icon: BookMarked,
-            enabled: false,
+            enabled: true,
             // The real model: a book carries N tear-off sub-coupons, each
             // redeemable once. Issuing books rather than loose vouchers is what
             // makes them traceable, so the book is the unit here.
@@ -297,7 +297,7 @@ export const NAV: NavSection[] = [
             href: "/coupons/redeem",
             label: "Redeem Coupon",
             icon: TicketCheck,
-            enabled: false,
+            enabled: true,
             permission: "recordSale",
             soonNote: "Take a coupon at the pump — validates it is unused and not cancelled",
           },
@@ -305,14 +305,14 @@ export const NAV: NavSection[] = [
             href: "/coupons/register",
             label: "Coupon Register",
             icon: ListOrdered,
-            enabled: false,
+            enabled: true,
             soonNote: "Every coupon and sub-coupon, filtered by status and billed/unbilled",
           },
           {
             href: "/coupons/cancellations",
             label: "Cancellations",
             icon: TicketX,
-            enabled: false,
+            enabled: true,
             soonNote: "Cancel a book or a single sub-coupon, with reason and audit",
           },
         ],
@@ -321,9 +321,40 @@ export const NAV: NavSection[] = [
         href: "/corporate",
         label: "Corporate Pay",
         icon: Building2,
-        enabled: false,
+        enabled: true,
         permission: "manageCustomers",
         soonNote: "Fleet accounts with vehicle-level limits",
+        children: [
+          {
+            href: "/corporate/accounts",
+            label: "Corporate Accounts",
+            icon: Building2,
+            enabled: true,
+            soonNote: "Corporate client directory, credit limits and deposits",
+          },
+          {
+            href: "/corporate/vehicles",
+            label: "Fleet Vehicles",
+            icon: Car,
+            enabled: true,
+            soonNote: "Whitelisted vehicles, assigned drivers and fuel quotas",
+          },
+          {
+            href: "/corporate/authorize",
+            label: "Authorize Dispense",
+            icon: Fuel,
+            enabled: true,
+            permission: "recordSale",
+            soonNote: "Pump attendant authorization terminal and odometer logging",
+          },
+          {
+            href: "/corporate/statements",
+            label: "Billing Statements",
+            icon: FileBarChart2,
+            enabled: true,
+            soonNote: "Monthly consolidated corporate statements and tax invoices",
+          },
+        ],
       },
     ],
   },
@@ -343,13 +374,9 @@ export const NAV: NavSection[] = [
             href: "/approvals",
             label: "Approvals",
             icon: Stamp,
-            enabled: false,
+            enabled: true,
             permission: "manageUsers",
-            // "Approver/Presenter" in a competitor's menu. This is maker-checker:
-            // one person prepares an entry, another releases it. It is NOT really
-            // a screen — it is a pending/approved state on every mutating action,
-            // so treat the menu item as the visible tip of a cross-cutting change.
-            soonNote: "Maker-checker: who may prepare an entry and who may release it",
+            soonNote: "Maker-checker workflow: request preparation, verification & release",
           },
         ],
       },
@@ -357,36 +384,22 @@ export const NAV: NavSection[] = [
         href: "/access",
         label: "Access Level Management",
         icon: ShieldCheck,
-        enabled: false,
+        enabled: true,
         permission: "manageUsers",
         children: [
           {
             href: "/access/roles",
             label: "Roles",
             icon: KeyRound,
-            enabled: false,
-            // Today `Role` is a Prisma enum with four fixed values and
-            // src/lib/permissions.ts is a compile-time constant — reviewed,
-            // and impossible to change at runtime. This item turns both into
-            // data, which is the single most security-sensitive change this
-            // app can make: a bug in the editor becomes privilege escalation.
-            // It must preserve the guards that already exist — last active
-            // owner, no self-demotion — which are written against the enum.
-            soonNote: "Custom roles per station. Today's four roles are fixed in code",
+            enabled: true,
+            soonNote: "Station role definitions and assigned capabilities",
           },
           {
             href: "/access/permissions",
             label: "Permissions",
             icon: SlidersHorizontal,
-            enabled: false,
-            // Deliberately NO "Menu Management" sibling. A competitor ships
-            // both "Menu managment" and "Access Menu Management" because their
-            // sidebar is a separate editable list. Ours is derived: each nav
-            // item declares a permission and the sidebar filters on it, so
-            // granting a permission reveals its menu entry automatically. A
-            // second editor would be a second source of truth that can
-            // disagree with the first.
-            soonNote: "Grant capabilities to a role — the menu follows automatically",
+            enabled: true,
+            soonNote: "Visual permissions matrix and capability controls",
           },
         ],
       },

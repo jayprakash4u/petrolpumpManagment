@@ -23,19 +23,20 @@ function containsActive(item: NavItem, activeHref: string): boolean {
   return item.href === activeHref;
 }
 
-const rowBase = "font-display flex items-center gap-3 rounded-[9px] px-3 py-2 text-[13px] transition-colors";
+const rowBase = "font-display flex items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[13px] transition-colors";
 const rowIdle = "font-medium text-text-muted hover:bg-white/5 hover:text-text";
 const rowActive = "bg-accent/10 font-semibold text-accent";
 const rowDisabled = "font-medium text-text-muted/40 cursor-not-allowed";
 
 function DisabledRow({ item, inset }: { item: NavItem; inset?: boolean }) {
+  const tooltipText = item.soonNote ? `${item.label} — ${item.soonNote}` : `${item.label} (Coming soon)`;
   return (
     <span
       aria-disabled="true"
-      className={`${rowBase} ${rowDisabled} ${inset ? "pl-9" : ""}`}
-      title={item.soonNote ?? "Coming soon"}
+      className={`${rowBase} ${rowDisabled} ${inset ? "py-1.5 text-[12.5px]" : ""}`}
+      title={tooltipText}
     >
-      <item.icon size={inset ? 14 : 16} />
+      <item.icon size={inset ? 14 : 16} className="shrink-0" />
       <span className="truncate">{item.label}</span>
       <span className="font-data ml-auto shrink-0 text-[9px] tracking-wide text-text-muted/40">SOON</span>
     </span>
@@ -44,13 +45,15 @@ function DisabledRow({ item, inset }: { item: NavItem; inset?: boolean }) {
 
 function LinkRow({ item, activeHref, inset }: { item: NavItem; activeHref: string; inset?: boolean }) {
   const isActive = item.href === activeHref;
+  const tooltipText = item.soonNote ? `${item.label} — ${item.soonNote}` : item.label;
   return (
     <Link
       href={item.href}
       aria-current={isActive ? "page" : undefined}
-      className={`${rowBase} ${isActive ? rowActive : rowIdle} ${inset ? "pl-9" : ""}`}
+      title={tooltipText}
+      className={`${rowBase} ${isActive ? rowActive : rowIdle} ${inset ? "py-1.5 text-[12.5px]" : ""}`}
     >
-      <item.icon size={inset ? 14 : 16} />
+      <item.icon size={inset ? 14 : 16} className="shrink-0" />
       <span className="truncate">{item.label}</span>
     </Link>
   );
@@ -73,13 +76,14 @@ function ExpandableRow({ item, activeHref }: { item: NavItem; activeHref: string
   return (
     <details open={open} className="group">
       <summary
+        title={item.label}
         // The webkit selector is needed as well as list-none: Safari draws its
         // own disclosure triangle that `list-style` alone does not remove.
         className={`${rowBase} cursor-pointer list-none marker:content-none [&::-webkit-details-marker]:hidden ${
           allUnbuilt ? "font-medium text-text-muted/40" : open ? "font-semibold text-text" : rowIdle
         }`}
       >
-        <item.icon size={16} />
+        <item.icon size={16} className="shrink-0" />
         <span className="truncate">{item.label}</span>
         {allUnbuilt && (
           <span className="font-data ml-auto shrink-0 text-[9px] tracking-wide text-text-muted/40">SOON</span>
@@ -90,7 +94,8 @@ function ExpandableRow({ item, activeHref }: { item: NavItem; activeHref: string
         />
       </summary>
 
-      <div className="mt-0.5 flex flex-col gap-0.5 border-l border-border pl-1.5 ml-[19px]">
+      {/* Clean single-level indentation with subtle tree line */}
+      <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-border/80 pl-2">
         {item.children!.map((child) =>
           child.enabled ? (
             <LinkRow key={child.href} item={child} activeHref={activeHref} inset />
@@ -123,7 +128,7 @@ export function SidebarContent({ activeHref, role }: { activeHref: string; role:
       <nav className="flex flex-1 flex-col gap-5 overflow-y-auto pb-4">
         {sections.map((section) => (
           <div key={section.label} className="flex flex-col gap-0.5">
-            <div className="font-data mb-1 px-3 text-[10px] tracking-[0.12em] text-text-muted/50">
+            <div className="font-data mb-1 px-2.5 text-[10px] tracking-[0.12em] text-text-muted/50">
               {section.label.toUpperCase()}
             </div>
 
@@ -141,7 +146,7 @@ export function SidebarContent({ activeHref, role }: { activeHref: string; role:
 
 export function Sidebar({ activeHref, role }: { activeHref: string; role: Role }) {
   return (
-    <aside className="hidden h-screen w-[232px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px] md:sticky md:top-0 md:flex">
+    <aside className="hidden h-screen w-[268px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px] md:sticky md:top-0 md:flex">
       <SidebarContent activeHref={activeHref} role={role} />
     </aside>
   );

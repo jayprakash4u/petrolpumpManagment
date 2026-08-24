@@ -32,7 +32,7 @@ export function DashboardShell({
           {/* h-screen + the nav's own overflow-y-auto, so the full menu is
               reachable on a phone instead of running off the bottom. */}
           <aside
-            className="flex h-screen w-[232px] flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px]"
+            className="flex h-screen w-[268px] flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px]"
             onClick={(e) => e.stopPropagation()}
           >
             <SidebarContent activeHref={activeHref} role={userRole} />
