@@ -29,7 +29,11 @@ export default async function SalesPage() {
 
         <Card>
           <SectionTitle icon={History} title="Recent Sales" subtitle="Last 15 transactions at this station" />
-          <RecentSalesTable sales={data.recentSales} canVoid={can(user.role, "voidSale")} />
+          <RecentSalesTable
+            sales={data.recentSales}
+            canVoid={can(user.role, "voidSale")}
+            customers={data.customers}
+          />
         </Card>
       </div>
     </div>

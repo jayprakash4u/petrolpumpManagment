@@ -5,7 +5,7 @@ export default async function SalesLayout({ children }: LayoutProps<"/sales">) {
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Sales Entry" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Sales" userName={user.name} userRole={user.role}>
       {children}
     </DashboardShell>
   );

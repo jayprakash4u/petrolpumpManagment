@@ -106,8 +106,11 @@ model Station {
   /// and the only globally unique identifier a tenant exposes. Kept separate
   /// from `name` so a station can be renamed without breaking every login.
   slug          String   @unique
-  name    String
-  address String
+  name        String
+  companyName String?
+  phone       String?
+  email       String?
+  address     String
   /// Set when the platform suspends this tenant (non-payment, abuse). While
   /// set, nobody at the station can sign in, and every live session was
   /// revoked at the moment of suspension. Nullable rather than a boolean so

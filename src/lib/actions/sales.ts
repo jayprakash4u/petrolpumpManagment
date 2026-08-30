@@ -25,7 +25,9 @@ export interface ReceiptDTO {
   liters: string;
   rate: string;
   total: string;
-  paymentMethod: PaymentMethod;
+  paymentMethod: "CASH" | "CREDIT" | "ONLINE" | "CARD";
+  onlineProvider?: string | null;
+  paymentRef?: string | null;
   customerName: string | null;
   changeDue: string | null;
   soldBy: string;
@@ -42,7 +44,9 @@ const SaleSchema = z.object({
   tankId: z.string().min(1, "Choose a fuel"),
   mode: z.enum(["LITERS", "AMOUNT"]),
   quantity: z.string().trim().min(1, "Enter a quantity"),
-  paymentMethod: z.enum(["CASH", "CREDIT"]),
+  paymentMethod: z.enum(["CASH", "CREDIT", "ONLINE", "CARD"]),
+  onlineProvider: z.string().optional(),
+  paymentRef: z.string().optional(),
   customerId: z.string().optional(),
   cashTendered: z.string().optional(),
   /**
@@ -78,6 +82,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
     mode: formData.get("mode"),
     quantity: formData.get("quantity"),
     paymentMethod: formData.get("paymentMethod"),
+    onlineProvider: formData.get("onlineProvider") ?? undefined,
+    paymentRef: formData.get("paymentRef") ?? undefined,
     customerId: formData.get("customerId") ?? undefined,
     cashTendered: formData.get("cashTendered") ?? undefined,
     expectedRate: formData.get("expectedRate"),
@@ -185,7 +191,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           liters,
           ratePerL: tank.ratePerL,
           totalAmount,
-          paymentMethod: input.paymentMethod as PaymentMethod,
+          paymentMethod: input.paymentMethod === "CREDIT" ? "CREDIT" : "CASH",
           customerId: input.paymentMethod === "CREDIT" ? input.customerId : null,
           soldById: user.id,
         },
@@ -205,6 +211,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
             ratePerL: tank.ratePerL.toString(),
             totalAmount: totalAmount.toString(),
             paymentMethod: input.paymentMethod,
+            onlineProvider: input.onlineProvider ?? null,
+            paymentRef: input.paymentRef ?? null,
             customerId: input.customerId ?? null,
             tankLevelAfter: tank.levelL.sub(liters).toString(),
           },
@@ -220,7 +228,9 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         liters: fmtL(liters),
         rate: fmtRate(tank.ratePerL),
         total: fmtRs(totalAmount),
-        paymentMethod: input.paymentMethod as PaymentMethod,
+        paymentMethod: input.paymentMethod,
+        onlineProvider: input.onlineProvider ?? null,
+        paymentRef: input.paymentRef ?? null,
         customerName,
         changeDue: tendered && tendered.gte(totalAmount) ? fmtRs(tendered.sub(totalAmount)) : null,
         soldBy: user.name,
@@ -312,3 +322,124 @@ export async function voidSaleAction(_prev: VoidState, formData: FormData): Prom
     return { error: "Could not void the sale. Please try again." };
   }
 }
+
+export interface EditSaleState {
+  error?: string;
+  success?: boolean;
+}
+
+const EditSaleSchema = z.object({
+  saleId: z.string().min(1, "Missing sale ID"),
+  vehicleNo: z.string().optional(),
+  customerId: z.string().optional(),
+  paymentMethod: z.enum(["CASH", "CREDIT", "ONLINE", "CARD"]),
+  onlineProvider: z.string().optional(),
+  paymentRef: z.string().optional(),
+  reason: z.string().trim().min(3, "Please give a reason for editing this bill"),
+});
+
+export async function editSaleAction(_prev: EditSaleState, formData: FormData): Promise<EditSaleState> {
+  const user = await requireUser();
+  if (!can(user.role, "voidSale")) {
+    return { error: "Only an owner or manager can edit a recorded bill." };
+  }
+
+  const parsed = EditSaleSchema.safeParse({
+    saleId: formData.get("saleId"),
+    vehicleNo: formData.get("vehicleNo") || undefined,
+    customerId: formData.get("customerId") || undefined,
+    paymentMethod: formData.get("paymentMethod"),
+    onlineProvider: formData.get("onlineProvider") || undefined,
+    paymentRef: formData.get("paymentRef") || undefined,
+    reason: formData.get("reason"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid edit data" };
+  }
+
+  const { saleId, vehicleNo, customerId, paymentMethod, onlineProvider, paymentRef, reason } = parsed.data;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: { id: saleId, stationId: user.stationId },
+        include: { customer: true },
+      });
+      if (!sale) throw new SaleError("Sale not found.");
+      if (sale.voided) throw new SaleError("Cannot edit a voided bill.");
+
+      const oldPaymentMethod = sale.paymentMethod;
+      const oldCustomerId = sale.customerId;
+      const newCustomerId = paymentMethod === "CREDIT" ? customerId || null : null;
+
+      // 1. Revert previous customer credit if old was CREDIT
+      if (oldPaymentMethod === "CREDIT" && oldCustomerId) {
+        const prevCust = await tx.customer.findUnique({ where: { id: oldCustomerId } });
+        if (prevCust) {
+          const restored = prevCust.dueAmount.sub(sale.totalAmount);
+          await tx.customer.update({
+            where: { id: prevCust.id },
+            data: { dueAmount: restored.isNegative() ? new D(0) : restored },
+          });
+        }
+      }
+
+      // 2. Apply new customer credit if new is CREDIT
+      if (paymentMethod === "CREDIT" && newCustomerId) {
+        const newCust = await tx.customer.findUnique({ where: { id: newCustomerId } });
+        if (!newCust) throw new SaleError("Selected credit customer does not exist.");
+        await tx.customer.update({
+          where: { id: newCust.id },
+          data: { dueAmount: { increment: sale.totalAmount } },
+        });
+      }
+
+      // 3. Update the sale record
+      await tx.sale.update({
+        where: { id: sale.id },
+        data: {
+          vehicleNo: vehicleNo ? vehicleNo.trim().toUpperCase() : null,
+          customerId: newCustomerId,
+          paymentMethod: paymentMethod as PaymentMethod,
+        },
+      });
+
+      // 4. Record audit log
+      await tx.auditLog.create({
+        data: {
+          stationId: user.stationId,
+          actorId: user.id,
+          action: "SALE_EDITED",
+          entityType: "Sale",
+          entityId: sale.id,
+          metadata: {
+            receiptNo: sale.receiptNo,
+            reason,
+            previous: {
+              vehicleNo: sale.vehicleNo,
+              customerId: sale.customerId,
+              paymentMethod: sale.paymentMethod,
+            },
+            updated: {
+              vehicleNo: vehicleNo || null,
+              customerId: newCustomerId,
+              paymentMethod,
+              onlineProvider,
+              paymentRef,
+            },
+          },
+        },
+      });
+    });
+
+    revalidatePath("/sales");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err) {
+    if (err instanceof SaleError) return { error: err.message };
+    console.error("editSaleAction failed", err);
+    return { error: "Could not update the bill. Please try again." };
+  }
+}
+

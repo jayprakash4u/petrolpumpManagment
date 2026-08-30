@@ -2,58 +2,64 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
-import { Fuel, Eye, EyeOff } from "lucide-react";
+import { Fuel, Eye, EyeOff, Sparkles, AlertCircle } from "lucide-react";
 import { loginAction, type LoginState } from "@/lib/actions/auth";
 import { Field, Input } from "@/components/ui/Field";
-import { PrimaryButton } from "@/components/ui/Button";
+import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 
 const initialState: LoginState = {};
 
-export function LoginForm({ defaultStation = "" }: { defaultStation?: string }) {
+export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStation?: string }) {
   const [state, action, pending] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
+  const [station, setStation] = useState(defaultStation);
+  const [username, setUsername] = useState("prakash");
+  const [password, setPassword] = useState("password123");
+
+  const fillDemoUser = (user: string) => {
+    setStation("shree-petroleum");
+    setUsername(user);
+    setPassword("password123");
+  };
 
   return (
-    <div className="w-full max-w-[380px] animate-fade-in">
+    <div className="w-full max-w-[400px] animate-fade-in">
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
-          <Fuel size={24} color="#1A1306" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent shadow-lg shadow-accent/20">
+          <Fuel size={28} color="#1A1306" />
         </div>
         <div>
-          <h1 className="font-display text-xl font-bold text-text">Shree Petroleum</h1>
-          <p className="font-data text-xs tracking-wide text-text-muted">STATION CONTROL</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-text">Shree Petroleum</h1>
+          <p className="font-data text-xs tracking-wider text-text-muted uppercase">Station Operator Console</p>
         </div>
       </div>
 
-      <form action={action} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
-        {/*
-          Staff identify themselves as (station, username) — usernames are unique
-          per pump, not globally, so the station code is what says which
-          tenant this login belongs to.
-        */}
-        <Field label="Station code" htmlFor="station">
+      <form action={action} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6 shadow-xl">
+        <Field label="Station Code" htmlFor="station">
           <Input
             id="station"
             name="station"
             autoComplete="organization"
             autoFocus
-            defaultValue={defaultStation}
-            aria-describedby="station-hint"
+            value={station}
+            onChange={(e) => setStation(e.target.value)}
             placeholder="shree-petroleum"
+            required
           />
         </Field>
-        <p id="station-hint" className="-mt-2 text-[11.5px] text-text-muted">
-          The code your station was given — usually hyphenated, e.g. <span className="font-data">shree-petroleum</span>.
-        </p>
-        <Field label="Username" htmlFor="username">
-          {/*
-            Not autoComplete="username": this field used to hold an email, so
-            browsers with a saved credential offer that old address here and
-            the sign-in fails for a reason nobody can see. A distinct token
-            keeps the browser from filling a value that can no longer work.
-          */}
-          <Input id="username" name="username" autoComplete="off" placeholder="ramesh" />
+
+        <Field label="Operator Username" htmlFor="username">
+          <Input
+            id="username"
+            name="username"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="e.g. prakash, anita, sita"
+            required
+          />
         </Field>
+
         <Field label="Password" htmlFor="password">
           <div className="relative">
             <Input
@@ -61,8 +67,11 @@ export function LoginForm({ defaultStation = "" }: { defaultStation?: string }) 
               name="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="pr-10"
+              required
             />
             <button
               type="button"
@@ -76,19 +85,46 @@ export function LoginForm({ defaultStation = "" }: { defaultStation?: string }) 
         </Field>
 
         {state?.error && (
-          <div className="animate-fade-in rounded-lg border border-error/30 bg-error/8 px-[11px] py-2 text-[12.5px] text-error">
-            {state.error}
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 animate-fade-in rounded-xl border border-error/30 bg-error/10 p-3 text-[13px] text-error font-medium"
+          >
+            <AlertCircle size={17} className="mt-0.5 shrink-0 text-error" />
+            <div className="flex-1">
+              <span className="font-bold">Sign-in Failed:</span> {state.error}
+            </div>
           </div>
         )}
 
-        <PrimaryButton type="submit" disabled={pending} className="mt-1 w-full py-3 text-[14.5px]">
-          {pending ? "Signing in…" : "Sign In"}
+        <PrimaryButton type="submit" disabled={pending} className="mt-2 w-full py-3 text-[14.5px] font-bold">
+          {pending ? "Signing in…" : "Sign In to Station Panel"}
         </PrimaryButton>
+
+        {/* 1-Click Demo Login Box */}
+        <div className="mt-2 flex items-center justify-between rounded-xl border border-border/80 bg-surface-hi p-3">
+          <div className="flex flex-col text-left">
+            <span className="text-[11.5px] font-semibold text-text">Demo Credentials:</span>
+            <span className="font-data text-[11px] text-text-muted">
+              Station: <strong className="text-text">shree-petroleum</strong> · User: <strong className="text-text">prakash</strong>
+            </span>
+          </div>
+          <GhostButton
+            type="button"
+            onClick={() => fillDemoUser("prakash")}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-semibold text-accent hover:bg-accent/10"
+          >
+            <Sparkles size={12} />
+            Auto Fill
+          </GhostButton>
+        </div>
       </form>
 
       <p className="mt-5 text-center text-xs text-text-muted">
-        Demo station code <span className="font-data text-text">shree-petroleum</span> · password <span className="font-data text-text">password123</span> · owner@shreepetroleum.test ·
-        manager@shreepetroleum.test · cashier@shreepetroleum.test · ramesh@shreepetroleum.test
+        Are you a platform Super Admin? Sign in at{" "}
+        <a href="/admin/login" className="font-semibold text-accent hover:underline">
+          /admin/login
+        </a>
+        .
       </p>
     </div>
   );

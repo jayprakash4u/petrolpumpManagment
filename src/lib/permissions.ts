@@ -3,9 +3,7 @@ import type { Role } from "@prisma/client";
 /**
  * Single source of truth for role capabilities. UI code uses this to decide
  * what to render; every server action re-checks the same function against
- * the *server-verified* session role before touching data — the client is
- * never trusted (see the Server Actions guidance in Next.js's auth docs:
- * "treat Server Actions like public API endpoints").
+ * the *server-verified* session role before touching data.
  */
 export const PERMISSIONS = {
   recordSale: ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"],
@@ -33,7 +31,7 @@ export class ForbiddenError extends Error {
   }
 }
 
-/** Throws (rather than returning a boolean) for use at the top of a Server Action, so a missing check fails loudly instead of silently no-op-ing. */
+/** Throws (rather than returning a boolean) for use at the top of a Server Action. */
 export function assertCan(role: Role, permission: Permission): void {
   if (!can(role, permission)) {
     throw new ForbiddenError(permission);

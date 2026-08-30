@@ -1,7 +1,16 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Receipt as ReceiptIcon, Banknote, CreditCard } from "lucide-react";
+import {
+  Receipt as ReceiptIcon,
+  Banknote,
+  CreditCard,
+  QrCode,
+  Smartphone,
+  CheckCircle2,
+  Building2,
+  Wallet,
+} from "lucide-react";
 import { clsx } from "clsx";
 import { recordSaleAction, type SaleFormState } from "@/lib/actions/sales";
 import type { TankOption, CustomerOption } from "@/lib/queries/sales";
@@ -51,10 +60,7 @@ export function SaleForm({
     <>
       {/*
         Keying on the receipt number resets every field the moment a sale
-        lands, so the next customer is served on a clean form. React's own
-        "reset state with a key" pattern — no effect, and crucially the
-        fields survive untouched when the action comes back with an *error*,
-        since the key only changes on success.
+        lands, so the next customer is served on a clean form.
       */}
       <SaleFields
         key={state.receipt?.receiptNo ?? "pending"}
@@ -86,7 +92,9 @@ function SaleFields({
   const [tankId, setTankId] = useState(tanks[0]?.id ?? "");
   const [mode, setMode] = useState<"LITERS" | "AMOUNT">("LITERS");
   const [quantity, setQuantity] = useState("");
-  const [payment, setPayment] = useState<"CASH" | "CREDIT">("CASH");
+  const [payment, setPayment] = useState<"CASH" | "ONLINE" | "CARD" | "CREDIT">("CASH");
+  const [onlineProvider, setOnlineProvider] = useState<"FONEPAY" | "ESEWA" | "KHALTI" | "MOBILE_BANKING">("FONEPAY");
+  const [paymentRef, setPaymentRef] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [tendered, setTendered] = useState("");
 
@@ -103,7 +111,7 @@ function SaleFields({
   return (
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="mode" value={mode} />
-      {/* Pins the price the operator was shown; the action refuses the sale if the tank's rate has moved since. */}
+      {/* Pins the price the operator was shown */}
       <input type="hidden" name="expectedRate" value={tank?.ratePerL ?? ""} />
 
       <Field label="Fuel" htmlFor="tankId">
@@ -161,13 +169,16 @@ function SaleFields({
         </div>
       </div>
 
+      {/* Payment Method Selector */}
       <div>
-        <span className="mb-1.5 block text-[12.5px] font-medium text-text-muted">Payment</span>
-        <div className="grid grid-cols-2 gap-2">
+        <span className="mb-1.5 block text-[12.5px] font-medium text-text-muted">Payment Mode</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(
             [
-              { v: "CASH", label: "Cash", Icon: Banknote },
-              { v: "CREDIT", label: "Credit", Icon: CreditCard },
+              { v: "CASH", label: "Cash (नगद)", Icon: Banknote },
+              { v: "ONLINE", label: "QR / Wallet", Icon: QrCode },
+              { v: "CARD", label: "Card / POS", Icon: CreditCard },
+              { v: "CREDIT", label: "Credit (खाता)", Icon: Wallet },
             ] as const
           ).map(({ v, label, Icon }) => (
             <button
@@ -176,8 +187,8 @@ function SaleFields({
               onClick={() => setPayment(v)}
               aria-pressed={payment === v}
               className={clsx(
-                "font-display flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-[13px] font-semibold transition-colors",
-                payment === v ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-text-muted hover:text-text"
+                "font-display flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2.5 text-[12.5px] font-semibold transition-colors",
+                payment === v ? "border-accent/50 bg-accent/15 text-accent shadow-xs" : "border-border text-text-muted hover:text-text hover:bg-surface-hi"
               )}
             >
               <Icon size={15} />
@@ -188,7 +199,92 @@ function SaleFields({
         <input type="hidden" name="paymentMethod" value={payment} />
       </div>
 
-      {payment === "CREDIT" ? (
+      {/* Online / QR / Digital Wallet Panel */}
+      {payment === "ONLINE" && (
+        <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-semibold text-text flex items-center gap-1.5">
+              <QrCode size={15} className="text-accent" /> Select Wallet / QR Network:
+            </span>
+            <span className="font-mono text-[11px] text-accent font-bold">
+              {calc ? rs(calc.total) : "Rs 0"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(
+              [
+                { id: "FONEPAY", label: "Fonepay QR" },
+                { id: "ESEWA", label: "eSewa" },
+                { id: "KHALTI", label: "Khalti" },
+                { id: "MOBILE_BANKING", label: "Mobile Banking" },
+              ] as const
+            ).map((provider) => (
+              <button
+                key={provider.id}
+                type="button"
+                onClick={() => setOnlineProvider(provider.id)}
+                className={clsx(
+                  "rounded-lg border px-2 py-1.5 text-center text-[11.5px] font-medium transition-colors",
+                  onlineProvider === provider.id
+                    ? "border-accent bg-accent text-[#1A1306] font-bold"
+                    : "border-border bg-surface text-text hover:bg-surface-hi"
+                )}
+              >
+                {provider.label}
+              </button>
+            ))}
+          </div>
+          <input type="hidden" name="onlineProvider" value={onlineProvider} />
+
+          {/* Dynamic Fonepay QR Prompt */}
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+              <QrCode size={48} className="text-black" />
+            </div>
+            <div className="text-[11.5px] space-y-0.5">
+              <div className="font-semibold text-text">Customer Dynamic QR</div>
+              <div className="text-text-muted">
+                Scan via Fonepay / eSewa / Any Bank App
+              </div>
+              <div className="font-mono font-bold text-accent">
+                Amount: {calc ? rs(calc.total) : "—"}
+              </div>
+            </div>
+          </div>
+
+          <Field label="Transaction Ref / Trace ID (optional)" htmlFor="paymentRef">
+            <Input
+              id="paymentRef"
+              name="paymentRef"
+              value={paymentRef}
+              onChange={(e) => setPaymentRef(e.target.value)}
+              placeholder="e.g. FP-904128 / eSewa Ref"
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* POS Card Machine Panel */}
+      {payment === "CARD" && (
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-text">
+            <CreditCard size={15} className="text-accent" /> POS Card Machine Authorization
+          </div>
+          <Field label="Card POS Authorization / Slip No (optional)" htmlFor="paymentRef">
+            <Input
+              id="paymentRef"
+              name="paymentRef"
+              value={paymentRef}
+              onChange={(e) => setPaymentRef(e.target.value)}
+              placeholder="e.g. POS-AUTH-4921 / Last 4 digits"
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* Credit Customer Select */}
+      {payment === "CREDIT" && (
         <Field label="Credit customer" htmlFor="customerId">
           <Select
             id="customerId"
@@ -205,7 +301,10 @@ function SaleFields({
             ))}
           </Select>
         </Field>
-      ) : (
+      )}
+
+      {/* Cash Tendered Input */}
+      {payment === "CASH" && (
         <Field label="Cash tendered (optional)" htmlFor="cashTendered">
           <Input
             id="cashTendered"
@@ -213,19 +312,18 @@ function SaleFields({
             inputMode="decimal"
             value={tendered}
             onChange={(e) => setTendered(e.target.value)}
-            placeholder="500"
+            placeholder="e.g. 1000"
           />
         </Field>
       )}
 
-      {change !== null && change > 0 && (
+      {change !== null && change > 0 && payment === "CASH" && (
         <div className="rounded-lg border border-success/30 bg-success/8 px-3 py-2 text-[13px] text-success">
           Change to return: <span className="font-data font-semibold">{rs(change)}</span>
         </div>
       )}
 
-      {/* Client-side warnings mirror the server's rules so the operator sees
-          the problem before submitting; the server still enforces both. */}
+      {/* Warnings */}
       {overStock && (
         <div className="rounded-lg border border-error/30 bg-error/8 px-3 py-2 text-[12.5px] text-error">
           Only {stock.toLocaleString("en-IN")} L left in this tank.

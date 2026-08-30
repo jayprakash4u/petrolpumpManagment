@@ -13,6 +13,20 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
   );
 }
 
+function formatPaymentDisplay(receipt: ReceiptDTO): string {
+  if (receipt.paymentMethod === "ONLINE") {
+    const provider = receipt.onlineProvider ? receipt.onlineProvider.replace("_", " ") : "QR / Wallet";
+    return receipt.paymentRef ? `${provider} (Ref: ${receipt.paymentRef})` : `${provider} QR`;
+  }
+  if (receipt.paymentMethod === "CARD") {
+    return receipt.paymentRef ? `Card / POS (${receipt.paymentRef})` : "Card / POS";
+  }
+  if (receipt.paymentMethod === "CREDIT") {
+    return "Credit Account";
+  }
+  return "Cash";
+}
+
 /**
  * Shown after a successful sale. The `print-area` class is what the
  * @media print block in globals.css keys off — hitting Print renders just
@@ -47,9 +61,9 @@ export function ReceiptCard({ receipt }: { receipt: ReceiptDTO }) {
         <Line label="Volume" value={receipt.liters} />
         <div className="my-1 border-t border-dashed border-border" />
         <Line label="Total" value={receipt.total} strong />
-        <Line label="Payment" value={receipt.paymentMethod === "CASH" ? "Cash" : "Credit"} />
+        <Line label="Payment Mode" value={formatPaymentDisplay(receipt)} />
         {receipt.customerName && <Line label="Billed to" value={receipt.customerName} />}
-        {receipt.changeDue && <Line label="Change" value={receipt.changeDue} />}
+        {receipt.changeDue && <Line label="Change Returned" value={receipt.changeDue} />}
 
         <div className="mt-3 border-t border-dashed border-border pt-2 text-center font-data text-[10.5px] text-text-muted">
           Served by {receipt.soldBy} · Thank you

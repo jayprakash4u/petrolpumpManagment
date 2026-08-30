@@ -4,21 +4,14 @@ import { useSyncExternalStore } from "react";
 import { Clock, Menu, LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { logoutAction } from "@/lib/actions/auth";
-import { ROLE_LABEL } from "@/lib/permissions";
 import type { Role } from "@prisma/client";
+
+import { NetworkStatusIndicator } from "./NetworkStatusIndicator";
 
 function nowTime() {
   return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
-/**
- * The wall clock is external, mutable state that genuinely differs between
- * server and client, which is exactly what useSyncExternalStore is for:
- * the server snapshot is null (rendering "--:--"), so there's no hydration
- * mismatch, and the client resubscribes on its own cadence. Returning a
- * string from getSnapshot is safe — React compares with Object.is, and two
- * reads inside the same minute are equal.
- */
 function subscribeToClock(onChange: () => void) {
   const id = setInterval(onChange, 30_000);
   return () => clearInterval(id);
@@ -32,7 +25,7 @@ export function TopBar({
 }: {
   title: string;
   userName: string;
-  userRole: Role;
+  userRole?: Role;
   onMenu: () => void;
 }) {
   const time = useSyncExternalStore(subscribeToClock, nowTime, () => null);
@@ -47,6 +40,8 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3">
+        <NetworkStatusIndicator />
+
         <div className="font-data hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-[7px] text-[12.5px] text-text-muted sm:flex">
           <Clock size={13} />
           {time ?? "--:--"}
@@ -56,7 +51,9 @@ export function TopBar({
 
         <div className="hidden text-right sm:block">
           <div className="text-[13px] font-semibold text-text">{userName}</div>
-          <div className="font-data text-[10.5px] tracking-wide text-text-muted">{ROLE_LABEL[userRole].toUpperCase()}</div>
+          <div className="font-data text-[10px] tracking-wider text-accent uppercase font-bold">
+            STATION OPERATOR
+          </div>
         </div>
 
         <ThemeToggle />

@@ -89,15 +89,35 @@ export async function adminLogoutAction(): Promise<void> {
 export interface OnboardState {
   error?: string;
   message?: string;
+  invitationPacket?: {
+    stationName: string;
+    stationSlug: string;
+    companyName?: string;
+    phone?: string;
+    email?: string;
+    address: string;
+    adminName: string;
+    adminUsername: string;
+    adminPassword?: string;
+    adminEmail?: string;
+    adminPhone?: string;
+    loginUrl: string;
+    inviteText: string;
+  };
 }
 
 const OnboardSchema = z.object({
-  name: z.string().trim().min(2, "Enter the station name").max(120),
-  slug: z.string().trim().min(1, "Enter a station code"),
+  name: z.string().trim().min(2, "Enter the station/pump name").max(120),
+  companyName: z.string().trim().max(150).optional(),
+  phone: z.string().trim().max(30).optional(),
+  email: z.string().trim().max(100).optional(),
   address: z.string().trim().min(2, "Enter the station address").max(200),
-  ownerName: z.string().trim().min(2, "Enter the owner's name").max(80),
-  ownerUsername: z.string().trim().min(1, "Owner username is required"),
-  ownerPassword: z.string().min(8, "Owner password must be at least 8 characters").max(200),
+  slug: z.string().trim().min(1, "Enter a station code / ID"),
+  ownerName: z.string().trim().min(2, "Enter the Station Admin's name").max(80),
+  adminPhone: z.string().trim().max(30).optional(),
+  adminEmail: z.string().trim().max(100).optional(),
+  ownerUsername: z.string().trim().min(1, "Station Admin username is required"),
+  ownerPassword: z.string().min(8, "Password must be at least 8 characters").max(200),
 });
 
 /**
@@ -114,9 +134,14 @@ export async function onboardStationAction(_prev: OnboardState, formData: FormDa
 
   const parsed = OnboardSchema.safeParse({
     name: formData.get("name") ?? "",
-    slug: formData.get("slug") ?? "",
+    companyName: formData.get("companyName") ?? undefined,
+    phone: formData.get("phone") ?? undefined,
+    email: formData.get("email") ?? undefined,
     address: formData.get("address") ?? "",
-    ownerName: formData.get("ownerName") ?? "",
+    slug: formData.get("slug") ?? "",
+    ownerName: formData.get("ownerName") ?? formData.get("adminName") ?? "",
+    adminPhone: formData.get("adminPhone") ?? undefined,
+    adminEmail: formData.get("adminEmail") ?? undefined,
     ownerUsername: formData.get("ownerUsername") ?? "",
     ownerPassword: formData.get("ownerPassword") ?? "",
   });
@@ -135,18 +160,26 @@ export async function onboardStationAction(_prev: OnboardState, formData: FormDa
   try {
     const passwordHash = await bcrypt.hash(parsed.data.ownerPassword, BCRYPT_ROUNDS);
 
-    const created = await prisma.$transaction(async (tx) => {
+    const { station, owner } = await prisma.$transaction(async (tx) => {
       const clash = await tx.station.findUnique({ where: { slug } });
       if (clash) throw new PlatformError(`Station code "${slug}" is already taken.`);
 
       const station = await tx.station.create({
-        data: { slug, name: parsed.data.name, address: parsed.data.address },
+        data: {
+          slug,
+          name: parsed.data.name,
+          companyName: parsed.data.companyName?.trim() || null,
+          phone: parsed.data.phone?.trim() || null,
+          email: parsed.data.email?.trim() || null,
+          address: parsed.data.address,
+        },
       });
 
       const owner = await tx.user.create({
         data: {
           stationId: station.id,
           name: parsed.data.ownerName,
+          email: parsed.data.adminEmail?.trim() || null,
           username: ownerUsername,
           passwordHash,
           role: Role.OWNER,
@@ -160,17 +193,59 @@ export async function onboardStationAction(_prev: OnboardState, formData: FormDa
           action: "STATION_CREATED",
           entityType: "Station",
           entityId: station.id,
-          // Never the password or its hash.
-          metadata: { slug, name: station.name, ownerUsername: owner.username },
+          metadata: {
+            slug,
+            name: station.name,
+            companyName: station.companyName,
+            ownerUsername: owner.username,
+            adminEmail: owner.email,
+          },
         },
       });
 
-      return station;
+      return { station, owner };
     });
 
     revalidatePath("/admin");
+    revalidatePath("/admin/stations");
+
+    const loginUrl = `/login?station=${station.slug}`;
+    const inviteText = `=========================================
+⛽ PUMP-SAAS STATION INVITATION
+=========================================
+Dear ${owner.name},
+
+Your fuel station account has been provisioned on the Petrol Pump SaaS Management platform.
+
+🏢 Station Name: ${station.name}
+${station.companyName ? `📋 Company: ${station.companyName}\n` : ""}🔑 Station Code: ${station.slug}
+📍 Address: ${station.address}
+🌐 Login URL: http://localhost:3001/login?station=${station.slug}
+
+Station Admin Credentials:
+👤 Username: ${owner.username}
+🔒 Password: ${parsed.data.ownerPassword}
+
+You can now log in to configure your tanks, nozzles, rates, and team shifts.
+=========================================`;
+
     return {
-      message: `${created.name} created. Staff sign in with station code "${created.slug}".`,
+      message: `${station.name} created. Staff sign in with station code "${station.slug}".`,
+      invitationPacket: {
+        stationName: station.name,
+        stationSlug: station.slug,
+        companyName: station.companyName || undefined,
+        phone: station.phone || undefined,
+        email: station.email || undefined,
+        address: station.address,
+        adminName: owner.name,
+        adminUsername: owner.username,
+        adminPassword: parsed.data.ownerPassword,
+        adminEmail: owner.email || undefined,
+        adminPhone: parsed.data.adminPhone || undefined,
+        loginUrl,
+        inviteText,
+      },
     };
   } catch (err) {
     if (err instanceof PlatformError) return { error: err.message };

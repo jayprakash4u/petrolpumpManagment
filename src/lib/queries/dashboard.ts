@@ -15,7 +15,7 @@ export async function getDashboardData(stationId: string) {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [tanks, todaysSales, onShiftCount, staffCount, revenueByFuelRaw] = await Promise.all([
+  const [tanks, todaysSales, onShiftCount, staffCount, revenueByFuelRaw, recentSales] = await Promise.all([
     prisma.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
     prisma.sale.findMany({
       where: { stationId, createdAt: { gte: startOfToday }, voided: false },
@@ -28,6 +28,15 @@ export async function getDashboardData(stationId: string) {
       by: ["fuel"],
       where: { stationId, createdAt: { gte: startOfToday }, voided: false },
       _sum: { totalAmount: true },
+    }),
+    prisma.sale.findMany({
+      where: { stationId },
+      include: {
+        customer: { select: { name: true } },
+        soldBy: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6,
     }),
   ]);
 
@@ -71,6 +80,7 @@ export async function getDashboardData(stationId: string) {
     staffCount,
     revenueTrend,
     revenueByFuel,
+    recentSales,
     saleCount: todaysSales.length,
   };
 }

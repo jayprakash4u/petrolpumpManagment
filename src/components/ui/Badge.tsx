@@ -1,13 +1,15 @@
 import { clsx } from "clsx";
 import type { ReactNode } from "react";
 
-export type Tone = "success" | "error" | "accent" | "muted";
+export type Tone = "success" | "error" | "accent" | "muted" | "warning" | "text";
 
 const TONE_CLASSES: Record<Tone, string> = {
   success: "bg-success/12 text-success",
   error: "bg-error/12 text-error",
   accent: "bg-accent/12 text-accent",
   muted: "bg-text-muted/12 text-text-muted",
+  warning: "bg-warning/12 text-warning",
+  text: "bg-text/10 text-text",
 };
 
 export function Badge({

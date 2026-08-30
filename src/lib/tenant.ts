@@ -73,6 +73,15 @@ export function slugFromName(name: string): string {
   return normalizeSlug(name).slice(0, MAX_SLUG_LENGTH).replace(/-$/, "");
 }
 
+/** Generates a clean system-generated station code with optional random salt */
+export function generateStationCode(name: string, withSuffix = false): string {
+  const base = slugFromName(name) || "station";
+  if (!withSuffix) return base;
+  const rand = Math.floor(100 + Math.random() * 900);
+  const truncatedBase = base.slice(0, MAX_SLUG_LENGTH - 4).replace(/-$/, "");
+  return `${truncatedBase}-${rand}`;
+}
+
 export const SLUG_PROBLEM_MESSAGE: Record<SlugProblem, string> = {
   EMPTY: "Enter your station code.",
   TOO_SHORT: `A station code needs at least ${MIN_SLUG_LENGTH} characters.`,

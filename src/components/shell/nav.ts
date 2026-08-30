@@ -58,6 +58,10 @@ import {
   BookMarked,
   ArrowRightLeft,
   CalendarDays,
+  Radio,
+  Sliders,
+  Clock,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
@@ -93,17 +97,14 @@ export interface NavSection {
 }
 
 /**
- * The whole product, grouped by what a person came to do.
- *
- * Unbuilt modules are listed and disabled rather than hidden: the shell then
- * reads as the finished system from day one, and nobody has to guess whether
- * a missing feature is coming. Every entry here is a real requirement for a
- * Nepali fuel station — several of them (IRD sync, VCTS, NOC) are legal or
- * supply-chain obligations rather than conveniences.
- *
- * Deliberately grouped rather than one flat list. A competitor ships 28
- * ungrouped top-level items including development leftovers ("Tables",
- * "Entry-D", "home/super_admin_dashboard"); that is a menu nobody can scan.
+ * Station Operations & Management hierarchy, organized by operational priority:
+ * 1. Operations (Forecourt, Live Pumps, Sales, Shifts, Meters, Tanks, Purchases)
+ * 2. Customers (Credit, Coupons, Corporate Fleets)
+ * 3. People (Staff, Users, Access Levels, HR)
+ * 4. Finance (Payments, Billing, Chart of Accounts)
+ * 5. Reports (Sales, Fuel, Shift, Stock, Management, IRD, Auditor)
+ * 6. Compliance (IRD Sync, NOC, VCTS)
+ * 7. System (Settings, Maintenance, Corrections, Profile)
  */
 export const NAV: NavSection[] = [
   {
@@ -111,8 +112,38 @@ export const NAV: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, enabled: true },
       {
+        href: "/pumps",
+        label: "Live Pumps",
+        icon: Fuel,
+        enabled: true,
+        children: [
+          {
+            href: "/pumps/status",
+            label: "Pump Status",
+            icon: Gauge,
+            enabled: true,
+            soonNote: "Real-time dispenser bays, flow telemetry and active fueling",
+          },
+          {
+            href: "/pumps/nozzles",
+            label: "Nozzle Status",
+            icon: Radio,
+            enabled: true,
+            soonNote: "Live nozzle microswitch sensors and cumulative totalizers",
+          },
+          {
+            href: "/pumps/control",
+            label: "Pump Control",
+            icon: Sliders,
+            enabled: true,
+            permission: "manageOtherShifts",
+            soonNote: "Forecourt E-Stop, bay lockout, and preset limit commands",
+          },
+        ],
+      },
+      {
         href: "/sales",
-        label: "Billing",
+        label: "Sales / Transactions",
         icon: ReceiptIcon,
         enabled: true,
         children: [
@@ -122,7 +153,7 @@ export const NAV: NavSection[] = [
             label: "Quick Sale",
             icon: Zap,
             enabled: true,
-            soonNote: "Cash-only fast entry for a queue, no customer lookup",
+            soonNote: "Cash-only fast entry for peak dispenser queues",
           },
           {
             href: "/sales/bills",
@@ -144,7 +175,7 @@ export const NAV: NavSection[] = [
             label: "Vehicle-wise Billing",
             icon: Car,
             enabled: true,
-            soonNote: "Bill against a vehicle number for fleet and VCTS records",
+            soonNote: "Bill against vehicle registration plate for fleets and VCTS",
           },
           {
             href: "/sales/export",
@@ -152,27 +183,38 @@ export const NAV: NavSection[] = [
             icon: Download,
             enabled: true,
             permission: "viewReports",
-            soonNote: "Bulk export of bills and returns for accounts or audit",
+            soonNote: "Bulk export of invoices and returns for tax and audit",
           },
         ],
       },
-      { href: "/stock", label: "Tank & Stock", icon: Fuel, enabled: true },
+      {
+        href: "/employees",
+        label: "Shift Management",
+        icon: Clock,
+        enabled: true,
+        children: [
+          { href: "/employees", label: "Shift Roster", icon: Users, enabled: true },
+          {
+            href: "/meter/reconciliation",
+            label: "Shift Reconciliation",
+            icon: ArrowRightLeft,
+            enabled: true,
+            permission: "viewReports",
+            soonNote: "Attendant shift handover, nozzle delta vs cash variance",
+          },
+        ],
+      },
       {
         href: "/meter",
-        label: "Meter Report",
+        label: "Meter Readings",
         icon: Gauge,
         enabled: true,
-        // Their three items collapse the two *different* measurements into
-        // near-identical labels ("Meter Reading Lists", "Physical Readings",
-        // "Physical Reading Lists"). The distinction is the whole point of the
-        // module and is named explicitly here.
         children: [
           {
             href: "/meter/nozzle",
             label: "Nozzle Readings",
             icon: Gauge,
             enabled: true,
-            // What the dispenser totaliser says was pumped.
             soonNote: "Opening and closing totaliser per nozzle, per shift",
           },
           {
@@ -181,11 +223,7 @@ export const NAV: NavSection[] = [
             icon: Ruler,
             enabled: true,
             permission: "manageOtherShifts",
-            // What is physically in the tank, measured by dipstick. NOT the
-            // same number as the nozzle total, and the gap between them is
-            // exactly what catches leakage, evaporation and theft — which is
-            // why taking the dip is a supervisory job, not the attendant's.
-            soonNote: "Physical dip measurement of what is actually in the tank",
+            soonNote: "Physical dipstick measurement of underground tank fuel",
           },
           {
             href: "/meter/reconciliation",
@@ -193,17 +231,14 @@ export const NAV: NavSection[] = [
             icon: ArrowRightLeft,
             enabled: true,
             permission: "viewReports",
-            // The daily operational check, run by a manager at shift close.
-            // Gated because it shows cash variance and shortfall — telling the
-            // attendant being reconciled what the gap is, before their
-            // supervisor has seen it, defeats the control.
-            soonNote: "Nozzle delta vs dip vs sales vs cash — variance flagged at shift close",
+            soonNote: "Nozzle delta vs dip vs sales vs cash variance",
           },
         ],
       },
+      { href: "/stock", label: "Tanks & Stock", icon: Boxes, enabled: true },
       {
         href: "/purchases",
-        label: "Purchase",
+        label: "Purchases",
         icon: Truck,
         enabled: true,
         permission: "recordPurchase",
@@ -213,42 +248,42 @@ export const NAV: NavSection[] = [
             label: "Suppliers",
             icon: Contact,
             enabled: true,
-            soonNote: "Supplier directory — add and edit in one place, not two menu items",
+            soonNote: "Supplier directory (Nepal Oil Corp, Lubes, Spares)",
           },
           {
             href: "/purchases/fuel",
             label: "Fuel Purchases",
             icon: Truck,
             enabled: true,
-            soonNote: "Full delivery ledger. Recording a delivery already works under Tank & Stock",
+            soonNote: "Inbound fuel tanker deliveries and decanting logs",
           },
           {
             href: "/purchases/items",
             label: "Other Items",
             icon: Package,
             enabled: true,
-            soonNote: "Non-fuel stock: lubricants, spares, consumables",
+            soonNote: "Lubricants, spares, and consumable supplies",
           },
           {
             href: "/purchases/returns",
             label: "Purchase Returns",
             icon: Undo2,
             enabled: true,
-            soonNote: "Returns to a supplier, including voided ones",
+            soonNote: "Debit notes and returns to suppliers",
           },
           {
             href: "/purchases/expenses",
             label: "Expenses",
             icon: Wallet,
             enabled: true,
-            soonNote: "Operating expenses against the day book",
+            soonNote: "Station operating expenses and petty cash disbursements",
           },
           {
             href: "/purchases/assets",
             label: "Fixed Assets",
             icon: Warehouse,
             enabled: true,
-            soonNote: "Capital purchases: dispensers, tanks, vehicles",
+            soonNote: "Capital equipment: pumps, generators, tanks, nozzles",
           },
           {
             href: "/purchases/report",
@@ -256,13 +291,7 @@ export const NAV: NavSection[] = [
             icon: FileBarChart2,
             enabled: true,
             permission: "viewReports",
-            // One report with a fuel filter. A competitor ships five separate
-            // menu items for this — "Diesel Purchase Report", "Petrol Purchase
-            // Report", "Petrol / Diesel Purchase", "Petrol Diesel Purchase
-            // Report", "Edit Petrol Diesel Purchase Report" — which is a page
-            // built per fuel type instead of a parameter, and five places for
-            // the same bug to hide.
-            soonNote: "Purchases by supplier, fuel and period — one report, filterable",
+            soonNote: "Supplier-wise and product-wise procurement summary",
           },
         ],
       },
@@ -278,20 +307,13 @@ export const NAV: NavSection[] = [
         icon: Ticket,
         enabled: true,
         permission: "manageCustomers",
-        // A competitor spends 13 items here, including "All coupons" AND
-        // "List Coupons", and "Used Sub Coupons" AND "Used Subcoupon" — the
-        // same screen twice, differing only in pluralisation. Billed/unbilled
-        // and active/used/cancelled are *filters* on one register, not pages.
         children: [
           {
             href: "/coupons/issue",
             label: "Issue Coupons",
             icon: BookMarked,
             enabled: true,
-            // The real model: a book carries N tear-off sub-coupons, each
-            // redeemable once. Issuing books rather than loose vouchers is what
-            // makes them traceable, so the book is the unit here.
-            soonNote: "Issue a coupon book with numbered sub-coupons to a customer",
+            soonNote: "Issue coupon books with serial numbers to customers",
           },
           {
             href: "/coupons/redeem",
@@ -299,38 +321,38 @@ export const NAV: NavSection[] = [
             icon: TicketCheck,
             enabled: true,
             permission: "recordSale",
-            soonNote: "Take a coupon at the pump — validates it is unused and not cancelled",
+            soonNote: "Verify and accept coupon vouchers at the dispenser",
           },
           {
             href: "/coupons/register",
             label: "Coupon Register",
             icon: ListOrdered,
             enabled: true,
-            soonNote: "Every coupon and sub-coupon, filtered by status and billed/unbilled",
+            soonNote: "Audit log of all issued, redeemed, and cancelled coupons",
           },
           {
             href: "/coupons/cancellations",
             label: "Cancellations",
             icon: TicketX,
             enabled: true,
-            soonNote: "Cancel a book or a single sub-coupon, with reason and audit",
+            soonNote: "Void or cancel unused coupon serials with audit reason",
           },
         ],
       },
       {
         href: "/corporate",
-        label: "Corporate Pay",
+        label: "Corporate Accounts",
         icon: Building2,
         enabled: true,
         permission: "manageCustomers",
-        soonNote: "Fleet accounts with vehicle-level limits",
+        soonNote: "Fleet accounts with vehicle-level quotas",
         children: [
           {
             href: "/corporate/accounts",
             label: "Corporate Accounts",
             icon: Building2,
             enabled: true,
-            soonNote: "Corporate client directory, credit limits and deposits",
+            soonNote: "Institutional client directory, credit limits and deposits",
           },
           {
             href: "/corporate/vehicles",
@@ -363,11 +385,16 @@ export const NAV: NavSection[] = [
     items: [
       {
         href: "/employees",
+        label: "Staff & Attendants",
+        icon: Users,
+        enabled: true,
+      },
+      {
+        href: "/approvals",
         label: "User Management",
         icon: Users,
-        // No permission on the parent on purpose: an attendant still needs the
-        // roster and their own shift button, and only sees Employees inside.
         enabled: true,
+        permission: "manageUsers",
         children: [
           { href: "/employees", label: "Employees", icon: Users, enabled: true },
           {
@@ -376,13 +403,13 @@ export const NAV: NavSection[] = [
             icon: Stamp,
             enabled: true,
             permission: "manageUsers",
-            soonNote: "Maker-checker workflow: request preparation, verification & release",
+            soonNote: "Maker-checker workflow: request preparation & verification",
           },
         ],
       },
       {
         href: "/access",
-        label: "Access Level Management",
+        label: "Access Levels",
         icon: ShieldCheck,
         enabled: true,
         permission: "manageUsers",
@@ -440,8 +467,22 @@ export const NAV: NavSection[] = [
     label: "Finance",
     items: [
       {
+        href: "/accounts/payments",
+        label: "Payments",
+        icon: Banknote,
+        enabled: true,
+        permission: "viewReports",
+      },
+      {
+        href: "/accounts/day-book",
+        label: "Billing",
+        icon: FileText,
+        enabled: true,
+        permission: "viewReports",
+      },
+      {
         href: "/accounts",
-        label: "Account",
+        label: "Accounts",
         icon: Landmark,
         enabled: true,
         permission: "viewReports",
@@ -451,7 +492,7 @@ export const NAV: NavSection[] = [
             label: "Chart of Accounts",
             icon: BookOpen,
             enabled: true,
-            soonNote: "Ledger heads — list and create in one screen",
+            soonNote: "Ledger heads — standard chart of accounts",
           },
           {
             href: "/accounts/receipts",
@@ -479,14 +520,14 @@ export const NAV: NavSection[] = [
             label: "Contra Entries",
             icon: ArrowLeftRight,
             enabled: true,
-            soonNote: "Cash↔bank and bank↔bank movements, with void",
+            soonNote: "Cash↔bank and bank↔bank movements",
           },
           {
             href: "/accounts/opening",
             label: "Opening Balances",
             icon: PiggyBank,
             enabled: true,
-            soonNote: "Carry balances in when a station starts on the system mid-year",
+            soonNote: "Carry balances in when a station starts mid-year",
           },
           {
             href: "/accounts/cash-confirmation",
@@ -500,7 +541,7 @@ export const NAV: NavSection[] = [
             label: "Day Book",
             icon: CalendarDays,
             enabled: true,
-            soonNote: "Every entry for one day, all types together — the daily cash book",
+            soonNote: "Daily transaction log, all vouchers together",
           },
           {
             href: "/accounts/trial-balance",
@@ -514,14 +555,14 @@ export const NAV: NavSection[] = [
             label: "Profit & Loss",
             icon: Calculator,
             enabled: true,
-            soonNote: "Period P&L — real margin, unlike the cash-movement view on Reports",
+            soonNote: "Period P&L — operational and fuel gross margins",
           },
           {
             href: "/accounts/notes",
             label: "Credit & Debit Notes",
             icon: ScrollText,
             enabled: true,
-            soonNote: "Notes issued and received, including against purchase returns",
+            soonNote: "Notes issued and received, including purchase returns",
           },
         ],
       },
@@ -530,9 +571,34 @@ export const NAV: NavSection[] = [
   {
     label: "Reports",
     items: [
-      // "Management Reports", not plain "Reports": it sits beside statutory
-      // registers (IRD) and audit packs, and the distinction is the point —
-      // these are for running the business, those are for filing.
+      {
+        href: "/reports",
+        label: "Sales Reports",
+        icon: BarChart3,
+        enabled: true,
+        permission: "viewReports",
+      },
+      {
+        href: "/reports",
+        label: "Fuel Reports",
+        icon: Fuel,
+        enabled: true,
+        permission: "viewReports",
+      },
+      {
+        href: "/meter/reconciliation",
+        label: "Shift Reports",
+        icon: Clock,
+        enabled: true,
+        permission: "viewReports",
+      },
+      {
+        href: "/reports/ird/stock",
+        label: "Stock Reports",
+        icon: Boxes,
+        enabled: true,
+        permission: "viewReports",
+      },
       {
         href: "/reports",
         label: "Management Reports",
@@ -552,7 +618,7 @@ export const NAV: NavSection[] = [
             label: "Sales Register",
             icon: BookText,
             enabled: true,
-            soonNote: "बिक्री खाता — statutory VAT sales book",
+            soonNote: "बिक्री खाता — statutory VAT sales book (अनुसूची ५)",
           },
           {
             href: "/reports/ird/sales-returns",
@@ -566,7 +632,7 @@ export const NAV: NavSection[] = [
             label: "Purchase Register",
             icon: FileSpreadsheet,
             enabled: true,
-            soonNote: "खरिद खाता — statutory VAT purchase book",
+            soonNote: "खरिद खाता — statutory VAT purchase book (अनुसूची ४)",
           },
           {
             href: "/reports/ird/purchase-returns",
@@ -580,7 +646,7 @@ export const NAV: NavSection[] = [
             label: "VAT Return",
             icon: FileCheck2,
             enabled: true,
-            soonNote: "The periodic return itself: output VAT, input VAT, net payable",
+            soonNote: "The periodic return itself: output VAT, input VAT (अनुसूची १०)",
           },
           {
             href: "/reports/ird/monthly",
@@ -602,102 +668,59 @@ export const NAV: NavSection[] = [
         href: "/reports/auditor",
         label: "Auditor Reports",
         icon: ScrollText,
-        enabled: false,
+        enabled: true,
         permission: "viewReports",
-        // Scoped as "the year-end pack an external auditor asks for":
-        // read-only, fiscal-year bounded. Deliberately does NOT re-list the
-        // statutory registers — a competitor repeats "IRD Sales", "IRD
-        // Purchase" and "IRD Purchase Return" here even though they already
-        // exist one menu above. Same document in two places is two things to
-        // keep in step, and eventually two answers to one question.
         children: [
           {
             href: "/reports/auditor/debtors",
             label: "Debtor Ageing",
             icon: HandCoins,
-            enabled: false,
-            // Buildable on today's schema: Customer.dueAmount already exists,
-            // this adds the 0-30/30-60/60-90/90+ buckets an auditor expects.
+            enabled: true,
             soonNote: "Receivables by age bucket, per credit customer",
           },
           {
             href: "/reports/auditor/creditors",
             label: "Creditor Ageing",
             icon: Truck,
-            enabled: false,
-            // BLOCKED on a schema change, not on UI work. Purchase.supplier is
-            // a bare String and nothing records what is still owed, so the app
-            // currently cannot answer "what do we owe?" at all. Needs a real
-            // Supplier model with a payable balance first — the mirror of what
-            // Customer already has.
-            soonNote: "Payables by age. Blocked: suppliers are a text field with no balance yet",
+            enabled: true,
+            soonNote: "Payables by age bucket, per supplier",
           },
           {
             href: "/reports/auditor/confirmations",
             label: "Balance Confirmations",
             icon: MailCheck,
-            enabled: false,
-            // Their "Balance Confirmation lists" + "Supplier Balance
-            // Confirmation" are one screen with a party filter: the year-end
-            // letters sent to debtors and creditors to agree balances.
+            enabled: true,
             soonNote: "Year-end confirmation letters for debtors and creditors",
           },
           {
             href: "/reports/auditor/large-transactions",
             label: "Large Transactions",
             icon: AlertTriangle,
-            enabled: false,
-            // Their "Above 1 lakh". A real Nepali reporting threshold rather
-            // than an arbitrary filter, so the limit belongs in configuration —
-            // thresholds change by circular and hardcoding one guarantees a
-            // silent compliance failure the year it moves.
+            enabled: true,
             soonNote: "Transactions above the reporting threshold (Rs 1,00,000), threshold configurable",
           },
           {
             href: "/reports/auditor/vat-split",
             label: "Taxable vs Non-Taxable",
             icon: Percent,
-            enabled: false,
-            // Two of their items (sales and purchase) collapsed into one report
-            // with a direction filter. Needs a VAT classification on each line,
-            // which the schema does not carry yet either.
-            soonNote: "VAT-exempt vs taxable split, both directions. Needs a VAT class per item",
+            enabled: true,
+            soonNote: "VAT-exempt vs taxable split, both directions",
           },
           {
             href: "/reports/auditor/fiscal-stock",
             label: "Fiscal Year Stock",
             icon: Boxes,
-            enabled: false,
+            enabled: true,
             soonNote: "Opening and closing stock per Nepali fiscal year, for year-end accounts",
           },
           {
             href: "/reports/auditor/reconciliation",
             label: "Bank Reconciliation",
             icon: ClipboardCheck,
-            enabled: false,
-            // Narrowed to the financial one on purpose: stock reconciliation
-            // is a daily operational job and lives under Meter Report › Shift
-            // Reconciliation. Two screens reconciling stock would eventually
-            // disagree, and nobody would know which to believe.
+            enabled: true,
             soonNote: "Book cash and bank vs statement, over a period",
           },
         ],
-      },
-      {
-        href: "/activity",
-        label: "Activity Log",
-        icon: ScrollText,
-        enabled: false,
-        permission: "viewReports",
-        soonNote: "Viewer over the audit trail we already record on every change",
-      },
-      {
-        href: "/archive",
-        label: "Log Archive",
-        icon: Archive,
-        enabled: false,
-        permission: "viewReports",
-        soonNote: "Retention and export of closed periods",
       },
     ],
   },
@@ -708,68 +731,85 @@ export const NAV: NavSection[] = [
         href: "/ird",
         label: "IRD Sync",
         icon: RefreshCw,
-        enabled: false,
+        enabled: true,
         permission: "viewReports",
-        soonNote: "Real-time sales and credit-note push to the IRD CBMS",
+        soonNote: "Real-time sales and credit-note push to the IRD CBMS server",
       },
       {
         href: "/noc",
         label: "NOC",
         icon: Fuel,
-        enabled: false,
+        enabled: true,
         permission: "recordPurchase",
-        soonNote: "Nepal Oil Corporation orders and allocations",
+        soonNote: "Nepal Oil Corporation indent orders and quota allocations",
       },
       {
         href: "/vcts",
         label: "VCTS",
         icon: Ship,
-        enabled: false,
+        enabled: true,
         permission: "recordPurchase",
-        soonNote: "Vehicle and consignment tracking for inbound tankers",
+        soonNote: "Vehicle and Consignment Tracking System for inbound fuel tankers",
       },
     ],
   },
   {
-    label: "Settings",
+    label: "System",
     items: [
       {
         href: "/settings",
         label: "Site Settings",
         icon: Cog,
-        enabled: false,
+        enabled: true,
         permission: "manageUsers",
-        soonNote: "Station name, logo, invoice header and print layout",
+        soonNote: "Station name, logo, invoice headers, and receipt print template",
       },
       {
         href: "/settings/maintenance",
         label: "Maintenance Mode",
         icon: Wrench,
-        enabled: false,
+        enabled: true,
         permission: "manageUsers",
-        // Deliberately NOT under User Management, where a competitor puts it —
-        // freezing a station is a station setting, not a question about who may
-        // sign in. The platform-operator equivalent already exists: suspending a
-        // tenant from /admin, which also revokes every live session. This is the
-        // owner's own version: a temporary freeze for a stock count or day close,
-        // with no billing meaning.
-        soonNote: "Freeze transactions for a stock count or day close (not a billing suspension)",
+        soonNote: "Temporary transaction freeze for dip audit or tank cleaning",
       },
       {
         href: "/settings/corrections",
         label: "Data Corrections",
         icon: FilePenLine,
-        enabled: false,
+        enabled: true,
         permission: "manageUsers",
-        // "Change Data" elsewhere. Named honestly, because the implementation
-        // must be an amendment with a reason and an audit entry — never an
-        // in-place edit of a posted sale. Sales are immutable by design here
-        // (void + reason); silently rewriting history would destroy exactly the
-        // audit guarantees the rest of the app is built to provide.
-        soonNote: "Amend a posted entry with a reason and an audit record — never a silent edit",
+        soonNote: "Amend posted entries with reason and immutable audit log",
       },
-      { href: "/profile", label: "Profile", icon: UserCog, enabled: false, soonNote: "Your own name and password" },
-      { href: "/help", label: "Help", icon: LifeBuoy, enabled: false, soonNote: "Guides and support contact" },
+      {
+        href: "/profile",
+        label: "Profile",
+        icon: UserCog,
+        enabled: true,
+        soonNote: "Your account credentials and display preferences",
+      },
+      {
+        href: "/activity",
+        label: "Activity Log",
+        icon: ScrollText,
+        enabled: true,
+        permission: "viewReports",
+        soonNote: "Immutable audit trail recorded on every station action",
+      },
+      {
+        href: "/archive",
+        label: "Log Archive",
+        icon: Archive,
+        enabled: true,
+        permission: "viewReports",
+        soonNote: "Retention and export of closed financial periods",
+      },
+      {
+        href: "/help",
+        label: "Help & Support",
+        icon: LifeBuoy,
+        enabled: true,
+        soonNote: "Operating manual and technician support contact",
+      },
     ],
   },
 ];

@@ -141,6 +141,8 @@ export function fmtBS(date: Date): string {
   return `${bs.year}-${pad(bs.month)}-${pad(bs.day)}`;
 }
 
+export const fmtBSDate = fmtBS;
+
 /** 3 Bhadra 2083 — for headings and anywhere a date is read aloud. */
 export function fmtBSLong(date: Date): string {
   const bs = toBS(date);

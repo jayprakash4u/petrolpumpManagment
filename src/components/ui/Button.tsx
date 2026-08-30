@@ -40,3 +40,5 @@ export function GhostButton({ className, tone = "muted", ...props }: ButtonProps
     />
   );
 }
+
+export const Button = PrimaryButton;

@@ -5,6 +5,8 @@ import { clsx } from "clsx";
 const TONE_TEXT = {
   accent: "text-accent",
   success: "text-success",
+  error: "text-error",
+  warning: "text-warning",
   text: "text-text",
 } as const;
 
@@ -12,13 +14,13 @@ export function StatCard({
   label,
   value,
   icon: Icon,
-  tone,
+  tone = "text",
   small,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
-  tone: keyof typeof TONE_TEXT;
+  tone?: keyof typeof TONE_TEXT;
   small?: boolean;
 }) {
   return (
