@@ -10,7 +10,7 @@ import {
   X,
   Info,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role, Permission } from "@/lib/permissions";
 import {
   type PermissionDefinition,
   PERMISSION_DEFINITIONS,
@@ -18,28 +18,30 @@ import {
   updatePermissionRoles,
   resetPermissionsToDefault,
 } from "@/lib/access";
-import type { Permission } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
-import { PrimaryButton, GhostButton } from "@/components/ui/Button";
+import { GhostButton } from "@/components/ui/Button";
 
 const ROLES_ORDER: { key: Role; label: string; tone: string }[] = [
-  { key: "OWNER", label: "Owner", tone: "text-accent" },
-  { key: "MANAGER", label: "Manager", tone: "text-text" },
-  { key: "CASHIER", label: "Cashier", tone: "text-text" },
-  { key: "ATTENDANT", label: "Attendant", tone: "text-text" },
+  { key: "OWNER", label: "Station Admin", tone: "text-accent font-bold" },
+  { key: "MANAGER", label: "Manager", tone: "text-text font-semibold" },
+  { key: "CASHIER", label: "Cashier", tone: "text-text font-semibold" },
+  { key: "ACCOUNTANT", label: "Accountant", tone: "text-text font-semibold" },
+  { key: "ATTENDANT", label: "Pump Operator", tone: "text-text font-semibold" },
+  { key: "OTHER", label: "Other Staff", tone: "text-text-muted" },
 ];
 
 const CATEGORIES: PermissionDefinition["category"][] = [
   "Sales & Cash",
+  "Pumps & Forecourt",
   "Stock & Pricing",
-  "Customers & Credit",
+  "Expenses & Accounts",
   "Operations & Admin",
 ];
 
 export function PermissionsMatrixView({
   currentUserRole,
 }: {
-  currentUserRole: Role;
+  currentUserRole: Role | string;
 }) {
   const [matrix, setMatrix] = useState<Record<Permission, Role[]>>(() => getPermissionsMatrix());
   const [notification, setNotification] = useState<{ type: "success" | "info"; message: string } | null>(null);
@@ -49,7 +51,6 @@ export function PermissionsMatrixView({
   const handleToggle = (permission: Permission, role: Role) => {
     if (!canEdit) return;
 
-    // Safety guard: Owner cannot lose manageUsers
     if (permission === "manageUsers" && role === "OWNER") {
       return;
     }
@@ -99,9 +100,9 @@ export function PermissionsMatrixView({
             <SlidersHorizontal size={20} />
           </div>
           <div>
-            <h3 className="font-display text-[16px] font-bold text-text">Permissions & Capabilities Matrix</h3>
+            <h3 className="font-display text-[16px] font-bold text-text">Default Role Templates & Permissions Matrix</h3>
             <p className="text-[12.5px] text-text-muted">
-              Turn capabilities on or off for each role. Sidebar navigation automatically adapts based on these permissions.
+              Standard starting presets for each job title. Station Admin can customize permissions per staff member on the Create/Edit Staff screen.
             </p>
           </div>
         </div>
@@ -112,7 +113,7 @@ export function PermissionsMatrixView({
           </GhostButton>
         ) : (
           <div className="flex items-center gap-1.5 rounded-lg bg-surface-hi px-3 py-1.5 text-[12px] text-text-muted">
-            <Lock size={13} /> Read-Only (Owner Controlled)
+            <Lock size={13} /> Read-Only (Station Admin Controlled)
           </div>
         )}
       </div>
@@ -134,9 +135,9 @@ export function PermissionsMatrixView({
                 <table className="w-full text-left text-[12.5px]">
                   <thead className="border-b border-border bg-bg/50 font-medium text-text-muted">
                     <tr>
-                      <th className="p-3 w-[45%]">Capability & Description</th>
+                      <th className="p-3 w-[40%]">Capability & Description</th>
                       {ROLES_ORDER.map((r) => (
-                        <th key={r.key} className={`p-3 text-center w-[13.75%] ${r.tone}`}>
+                        <th key={r.key} className={`p-3 text-center w-[10%] ${r.tone}`}>
                           {r.label}
                         </th>
                       ))}
@@ -157,17 +158,17 @@ export function PermissionsMatrixView({
                           </td>
 
                           {ROLES_ORDER.map((r) => {
-                            const isGranted = grantedRoles.includes(r.key);
-                            const isLockedOwnerAdmin = def.key === "manageUsers" && r.key === "OWNER";
+                            const isGranted = r.key === "OWNER" || grantedRoles.includes(r.key);
+                            const isLockedOwnerAdmin = r.key === "OWNER";
 
                             return (
                               <td key={r.key} className="p-3 text-center align-middle">
                                 {isLockedOwnerAdmin ? (
                                   <span
-                                    title="System Safety Guard: Owner must always have User Management permission."
-                                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-accent/20 text-accent cursor-not-allowed mx-auto"
+                                    title="Station Admin has 100% full access to all station functions."
+                                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-accent/20 text-accent mx-auto"
                                   >
-                                    <Lock size={13} />
+                                    <Check size={15} strokeWidth={2.5} />
                                   </span>
                                 ) : (
                                   <button
@@ -210,9 +211,9 @@ export function PermissionsMatrixView({
       <div className="rounded-xl border border-border bg-surface p-4 text-[12.5px] text-text-muted flex items-start gap-3">
         <Info size={16} className="text-accent shrink-0 mt-0.5" />
         <div>
-          <strong className="text-text block mb-0.5">How Permissions Work in Fuel Station Manager:</strong>
+          <strong className="text-text block mb-0.5">Role vs. Granular Permission Architecture:</strong>
           <span>
-            Every server action (e.g. creating sales, changing rates, recording expenses) validates against the server session role. When a capability is revoked from a role, its respective menu and action buttons are automatically hidden from staff with that role.
+            The <strong>Role</strong> determines the job title and initial preset capabilities. The <strong>Station Admin</strong> can customize access on a per-employee basis before or after creating staff accounts.
           </span>
         </div>
       </div>

@@ -12,7 +12,7 @@ import {
   FileText,
   AlertCircle,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import {
   type AttendanceRecord,
   type LeaveRequest,
@@ -50,7 +50,7 @@ const LEAVE_TONES: Record<LeaveRequest["status"], Tone> = {
 export function AttendanceView({
   currentUser,
 }: {
-  currentUser: { id: string; name: string; role: Role; username: string };
+  currentUser: { id: string; name: string; role: Role | string; username: string };
 }) {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => getAttendanceRecords());
   const [leaves, setLeaves] = useState<LeaveRequest[]>(() => getLeaveRequests());

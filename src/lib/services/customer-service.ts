@@ -74,10 +74,10 @@ export class CustomerService {
           action: "CUSTOMER_CREATED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: {
+          metadata: JSON.stringify({
             name: customer.name,
             creditLimit: limit.toString(),
-          },
+          }),
         },
       });
 
@@ -123,11 +123,11 @@ export class CustomerService {
           action: "CUSTOMER_PAYMENT_RECORDED",
           entityType: "CustomerPayment",
           entityId: payment.id,
-          metadata: {
+          metadata: JSON.stringify({
             customerId: customer.id,
             amount: amount.toString(),
             dueRemaining: updated.dueAmount.toString(),
-          },
+          }),
         },
       });
 
@@ -162,10 +162,10 @@ export class CustomerService {
           action: "CUSTOMER_CREDIT_LIMIT_UPDATED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: {
+          metadata: JSON.stringify({
             previousLimit: customer.creditLimit.toString(),
             newLimit: newLimit.toString(),
-          },
+          }),
         },
       });
 

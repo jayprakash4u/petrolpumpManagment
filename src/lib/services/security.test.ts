@@ -1,7 +1,31 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { PrismaClient, Role, FuelType, Prisma } from "@prisma/client";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { Role, FuelType } from "@/lib/permissions";
 import { ImpersonationService } from "./impersonation-service";
 import { AuditService } from "./audit-service";
+
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+/**
+ * Own throwaway database.
+ *
+ * This suite clears every table in beforeEach. Pointed at the development
+ * database — which is what it did — that silently destroyed the seeded
+ * station, its staff and the platform operator on every `npm test`, leaving
+ * nobody able to sign in. DATABASE_URL is redirected before the client is
+ * constructed, so the wipes can only ever hit this temporary file.
+ */
+const testDir = mkdtempSync(path.join(tmpdir(), "fsm-security-"));
+const testDbPath = path.join(testDir, "test.db");
+process.env.DATABASE_URL = "file:" + testDbPath;
+execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], {
+  env: { ...process.env, DATABASE_URL: "file:" + testDbPath },
+  stdio: "pipe",
+  shell: process.platform === "win32",
+});
 
 const prisma = new PrismaClient();
 
@@ -85,4 +109,9 @@ describe("Enterprise Security & Immutable Audit Trail Tests", () => {
       })
     ).rejects.toThrow(/mandatory/);
   });
+});
+
+afterAll(async () => {
+  await prisma.$disconnect();
+  rmSync(testDir, { recursive: true, force: true });
 });

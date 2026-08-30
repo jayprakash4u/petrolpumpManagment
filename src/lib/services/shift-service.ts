@@ -87,10 +87,10 @@ export class ShiftService {
           action: "SHIFT_STARTED",
           entityType: "Shift",
           entityId: shift.id,
-          metadata: {
+          metadata: JSON.stringify({
             operator: target.name,
             startedAt: startedAt.toISOString(),
-          },
+          }),
         },
       });
 
@@ -161,11 +161,11 @@ export class ShiftService {
           action: "SHIFT_CLOSED",
           entityType: "Shift",
           entityId: closedShift.id,
-          metadata: {
+          metadata: JSON.stringify({
             operator: shift.user.name,
             cashHandedOver: input.cashHandedOver,
             endedAt: endedAt.toISOString(),
-          },
+          }),
         },
       });
 

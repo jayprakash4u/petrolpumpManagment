@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
 import { Lock } from "lucide-react";
 import { VctsTrackingView } from "@/components/compliance/VctsTrackingView";
@@ -7,7 +7,7 @@ import { VctsTrackingView } from "@/components/compliance/VctsTrackingView";
 export default async function VctsPage() {
   const user = await requireUser();
 
-  if (!can(user.role, "recordPurchase")) {
+  if (!can(user.role as Role, "recordPurchase")) {
     return (
       <Card className="mx-auto max-w-md text-center py-10">
         <div className="mb-3 flex justify-center text-text-muted">

@@ -16,7 +16,7 @@ import {
   Truck,
   ArrowRight,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import {
   type ApprovalWorkflowType,
   type ApprovalPriority,
@@ -41,7 +41,7 @@ const WORKFLOW_OPTIONS: { type: ApprovalWorkflowType; label: string; icon: React
 export function ApprovalSubmitForm({
   currentUser,
 }: {
-  currentUser: { id: string; name: string; role: Role; username: string };
+  currentUser: { id: string; name: string; role: Role | string; username: string };
 }) {
   const router = useRouter();
   const [rules] = useState(() => getApprovalRules());

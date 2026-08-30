@@ -1,4 +1,4 @@
-import type { PaymentMethod, FuelType } from "@prisma/client";
+import type { PaymentMethod, FuelType } from "@/lib/permissions";
 
 export type SaleMode = "LITERS" | "RUPEES";
 

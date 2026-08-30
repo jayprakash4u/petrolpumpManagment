@@ -14,7 +14,7 @@ import {
   QrCode,
   DollarSign,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import {
   type MonthlyPayrollItem,
   type SalaryStructure,
@@ -37,7 +37,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 export function PayrollView({
   currentUser,
 }: {
-  currentUser: { id: string; name: string; role: Role; username: string };
+  currentUser: { id: string; name: string; role: Role | string; username: string };
 }) {
   const [payroll, setPayroll] = useState<MonthlyPayrollItem[]>(() => getMonthlyPayroll());
   const [structures, setStructures] = useState<SalaryStructure[]>(() => getSalaryStructures());

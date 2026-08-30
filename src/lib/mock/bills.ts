@@ -1,4 +1,4 @@
-import type { FuelType, PaymentMethod } from "@prisma/client";
+import type { FuelType, PaymentMethod } from "@/lib/permissions";
 
 /**
  * Static sample data for the Billing screens.

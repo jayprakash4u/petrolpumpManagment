@@ -1,17 +1,17 @@
 "use server";
 
 import * as z from "zod";
-import { Prisma, type FuelType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role, type FuelType } from "@/lib/permissions";
 import { checkDelivery, checkRate, rateChangePercent, ullage, costPerLiter } from "@/lib/stock-math";
 import { fmtRs, fmtL, fmtRate } from "@/lib/money";
 
 const D = Prisma.Decimal;
 
-const FUEL_LABELS: Record<FuelType, string> = { PETROL: "Petrol", DIESEL: "Diesel", CNG: "CNG" };
+const FUEL_LABELS: Record<string, string> = { PETROL: "Petrol", DIESEL: "Diesel", CNG: "CNG" };
 
 /** Thrown inside a transaction to roll it back with a message the operator can act on. */
 class StockError extends Error {}
@@ -54,7 +54,7 @@ const RateSchema = z.object({
 
 export async function updateFuelRateAction(_prev: RateFormState, formData: FormData): Promise<RateFormState> {
   const user = await requireUser();
-  if (!can(user.role, "editFuelRate")) {
+  if (!can(user.role as Role, "editFuelRate")) {
     return { error: "Only an owner or manager can change fuel rates." };
   }
 
@@ -123,12 +123,12 @@ export async function updateFuelRateAction(_prev: RateFormState, formData: FormD
           action: "FUEL_RATE_CHANGED",
           entityType: "Tank",
           entityId: tank.id,
-          metadata: {
+          metadata: JSON.stringify({
             fuel: tank.fuel,
             oldRate: tank.ratePerL.toString(),
             newRate: newRate.toString(),
             changePct: changePct.toString(),
-          },
+          }),
         },
       });
 
@@ -169,7 +169,7 @@ const DeliverySchema = z.object({
 
 export async function recordDeliveryAction(_prev: DeliveryFormState, formData: FormData): Promise<DeliveryFormState> {
   const user = await requireUser();
-  if (!can(user.role, "recordPurchase")) {
+  if (!can(user.role as Role, "recordPurchase")) {
     return { error: "Only an owner or manager can record a delivery." };
   }
 
@@ -245,7 +245,7 @@ export async function recordDeliveryAction(_prev: DeliveryFormState, formData: F
           action: "DELIVERY_RECORDED",
           entityType: "Purchase",
           entityId: purchase.id,
-          metadata: {
+          metadata: JSON.stringify({
             fuel: tank.fuel,
             liters: liters.toString(),
             totalCost: totalCost.toString(),
@@ -253,7 +253,7 @@ export async function recordDeliveryAction(_prev: DeliveryFormState, formData: F
             supplier: parsed.data.supplier,
             invoiceNo: parsed.data.invoiceNo || null,
             tankLevelAfter: tank.levelL.add(liters).toString(),
-          },
+          }),
         },
       });
 

@@ -1,4 +1,5 @@
-import { Prisma, type FuelType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { FuelType } from "@/lib/permissions";
 import { toDecimal, fmtL, fmtRs, fmtRate } from "@/lib/money";
 
 export type ShiftName = "Shift 1 (Morning)" | "Shift 2 (Evening)" | "Shift 3 (Night)";

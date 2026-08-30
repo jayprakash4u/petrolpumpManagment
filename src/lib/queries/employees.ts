@@ -7,10 +7,6 @@ const D = Prisma.Decimal;
 
 /**
  * Staff roster plus per-head sales performance for a reporting window.
- *
- * The per-staff totals come from `groupBy` rather than pulling every Sale
- * into JS — the same discipline as the Dashboard, so this page doesn't slow
- * down as the sales table grows.
  */
 export async function getEmployeesPageData(stationId: string, range: RangeKey) {
   const since = rangeStart(range);
@@ -25,7 +21,10 @@ export async function getEmployeesPageData(stationId: string, range: RangeKey) {
         name: true,
         username: true,
         email: true,
+        phone: true,
+        employeeId: true,
         role: true,
+        permissions: true,
         active: true,
         onShift: true,
         shiftStartedAt: true,
@@ -78,11 +77,6 @@ export async function getEmployeesPageData(stationId: string, range: RangeKey) {
       credit: revenue.sub(cash),
       averageSale: averageSale(revenue, sales?._count ?? 0),
       sharePct: revenueSharePct(revenue, stationRevenue),
-      /**
-       * Minutes on the current shift. Read from the Shift row rather than
-       * User.shiftStartedAt so the figure survives the two falling out of
-       * step — the row is the record, the flag is the index.
-       */
       onShiftMinutes: open ? shiftMinutes(open.startedAt, null, now) : 0,
     };
   });

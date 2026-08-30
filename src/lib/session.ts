@@ -2,41 +2,52 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
-import { prisma } from "@/lib/db";
+import { getTenantDb } from "@/lib/tenant-db";
 
 const SESSION_COOKIE = "fsm_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours — one shift
 const encodedSecret = new TextEncoder().encode(env.SESSION_SECRET);
 
 interface SessionJWTPayload {
-  sid: string; // Session.id (database row) — the JWT itself carries no authority, only names the row
+  sid: string; // Session.id in tenant database
+  slug: string; // Station slug identifying the dedicated tenant database
 }
 
-async function signSessionToken(sid: string): Promise<string> {
-  return new SignJWT({ sid } satisfies SessionJWTPayload)
+async function signSessionToken(sid: string, slug: string): Promise<string> {
+  return new SignJWT({ sid, slug } satisfies SessionJWTPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(Math.floor((Date.now() + SESSION_TTL_MS) / 1000))
     .sign(encodedSecret);
 }
 
-async function verifySessionToken(token: string): Promise<string | null> {
+async function verifySessionToken(token: string): Promise<{ sid: string; slug: string } | null> {
   try {
     const { payload } = await jwtVerify(token, encodedSecret, { algorithms: ["HS256"] });
-    const sid = (payload as Partial<SessionJWTPayload>).sid;
-    return typeof sid === "string" ? sid : null;
+    const p = payload as Partial<SessionJWTPayload>;
+    if (typeof p.sid === "string" && typeof p.slug === "string") {
+      return { sid: p.sid, slug: p.slug };
+    }
+    // Backward compatibility for tokens without slug (defaults to shree-petroleum)
+    if (typeof p.sid === "string") {
+      return { sid: p.sid, slug: "shree-petroleum" };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-/** Creates a DB-backed session row and sets the signed httpOnly cookie. Call after verifying credentials. */
-export async function createSession(userId: string, meta: { userAgent?: string; ipAddress?: string }) {
+/** Creates a DB-backed session row in the station's dedicated database and sets the signed httpOnly cookie. */
+export async function createSession(userId: string, slug: string, meta: { userAgent?: string; ipAddress?: string }) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  const session = await prisma.session.create({
+  const tenantDb = await getTenantDb(slug);
+
+  const session = await tenantDb.session.create({
     data: { userId, expiresAt, userAgent: meta.userAgent, ipAddress: meta.ipAddress },
   });
-  const token = await signSessionToken(session.id);
+
+  const token = await signSessionToken(session.id, slug);
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -48,32 +59,33 @@ export async function createSession(userId: string, meta: { userAgent?: string; 
 }
 
 /**
- * Reads the cookie, verifies the JWT signature, then checks the *database*
- * row — not just the token — so revoking a session (logout, deactivating a
- * user) takes effect on the next request instead of waiting for the JWT to
- * expire. Returns the authenticated user, or null.
+ * Reads the cookie, verifies the JWT signature, and checks the tenant database row.
+ * Returns the authenticated user and tenantSlug, or null.
  */
 export async function readSession() {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const sid = await verifySessionToken(token);
-  if (!sid) return null;
+  const verified = await verifySessionToken(token);
+  if (!verified) return null;
 
-  const session = await prisma.session.findUnique({
-    where: { id: sid },
-    include: { user: { include: { station: { select: { suspendedAt: true } } } } },
-  });
+  try {
+    const tenantDb = await getTenantDb(verified.slug);
+    const session = await tenantDb.session.findUnique({
+      where: { id: verified.sid },
+      include: { user: { include: { station: { select: { suspendedAt: true } } } } },
+    });
 
-  if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
-  if (!session.user.active) return null;
-  // Belt and braces: suspending a tenant already revokes every session, but
-  // checking here means a session created by any other path still can't
-  // trade on a suspended station.
-  if (session.user.station.suspendedAt !== null) return null;
+    if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
+    if (!session.user.active) return null;
+    if (session.user.station.suspendedAt !== null) return null;
 
-  return { sessionId: session.id, user: session.user };
+    return { sessionId: session.id, user: session.user, tenantSlug: verified.slug };
+  } catch (err) {
+    console.error("readSession error:", err);
+    return null;
+  }
 }
 
 export async function destroySession() {
@@ -81,12 +93,19 @@ export async function destroySession() {
   const token = store.get(SESSION_COOKIE)?.value;
   store.delete(SESSION_COOKIE);
   if (!token) return;
-  const sid = await verifySessionToken(token);
-  if (!sid) return;
-  await prisma.session.updateMany({
-    where: { id: sid, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+
+  const verified = await verifySessionToken(token);
+  if (!verified) return;
+
+  try {
+    const tenantDb = await getTenantDb(verified.slug);
+    await tenantDb.session.updateMany({
+      where: { id: verified.sid, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  } catch (err) {
+    console.error("destroySession error:", err);
+  }
 }
 
 /** Optimistic, cookie-only check for use in proxy.ts — no DB round trip, must not be trusted for authorization. */

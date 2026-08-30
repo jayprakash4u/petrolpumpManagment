@@ -62,6 +62,7 @@ import {
   Sliders,
   Clock,
   Activity,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/permissions";
@@ -184,6 +185,13 @@ export const NAV: NavSection[] = [
             enabled: true,
             permission: "viewReports",
             soonNote: "Bulk export of invoices and returns for tax and audit",
+          },
+          {
+            href: "/sales/proforma",
+            label: "Quotation / Proforma",
+            icon: FileText,
+            enabled: true,
+            soonNote: "Commercial quotation and proforma generator (non-accounting)",
           },
         ],
       },
@@ -397,6 +405,14 @@ export const NAV: NavSection[] = [
         permission: "manageUsers",
         children: [
           { href: "/employees", label: "Employees", icon: Users, enabled: true },
+          {
+            href: "/employees/new",
+            label: "Create Staff",
+            icon: UserPlus,
+            enabled: true,
+            permission: "manageUsers",
+            soonNote: "Add a member of staff and choose what they can access",
+          },
           {
             href: "/approvals",
             label: "Approvals",

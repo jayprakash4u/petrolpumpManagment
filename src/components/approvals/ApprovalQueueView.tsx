@@ -23,7 +23,7 @@ import {
   Square,
   Info,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import {
   type ApprovalRequest,
   type ApprovalStatus,
@@ -64,7 +64,7 @@ const WORKFLOW_ICONS: Record<ApprovalWorkflowType, React.ComponentType<{ size?: 
 export function ApprovalQueueView({
   currentUser,
 }: {
-  currentUser: { id: string; name: string; role: Role; username: string };
+  currentUser: { id: string; name: string; role: Role | string; username: string };
 }) {
   const [requests, setRequests] = useState<ApprovalRequest[]>(() => getApprovalRequests());
   const [rules] = useState(() => getApprovalRules());

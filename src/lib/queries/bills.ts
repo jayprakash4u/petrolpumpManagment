@@ -1,6 +1,7 @@
 import "server-only";
-import { Prisma, type FuelType, type PaymentMethod } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import type { FuelType, PaymentMethod } from "@/lib/permissions";
+import { requireTenantDb } from "@/lib/tenant-db";
 import type { BillFilters } from "@/lib/bill-filters";
 import { fmtBSDate } from "@/lib/bs-date";
 
@@ -209,9 +210,11 @@ const STATIC_SAMPLE_BILLS: SerializedBillItem[] = [
 ];
 
 export async function getBillsPageData(
-  stationId: string,
+  _stationId: string,
   filters: BillFilters
 ): Promise<BillsPageData> {
+  const { prisma: tenantDb, stationId } = await requireTenantDb();
+
   const where: Prisma.SaleWhereInput = {
     stationId,
     createdAt: {
@@ -252,7 +255,7 @@ export async function getBillsPageData(
   }
 
   const [rawSales, customers] = await Promise.all([
-    prisma.sale.findMany({
+    tenantDb.sale.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -261,7 +264,7 @@ export async function getBillsPageData(
         soldBy: { select: { name: true } },
       },
     }),
-    prisma.customer.findMany({
+    tenantDb.customer.findMany({
       where: { stationId, active: true },
       select: { id: true, name: true, creditLimit: true, dueAmount: true },
       orderBy: { name: "asc" },
@@ -277,11 +280,11 @@ export async function getBillsPageData(
       dateBS: fmtBSDate(d),
       time: d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }),
       createdAt: s.createdAt.toISOString(),
-      fuel: s.fuel,
+      fuel: s.fuel as FuelType,
       liters: Number(s.liters),
       rate: Number(s.ratePerL),
       amount: Number(s.totalAmount),
-      payment: s.paymentMethod,
+      payment: s.paymentMethod as PaymentMethod,
       vehicleNo: s.vehicleNo ?? null,
       customerId: s.customerId ?? null,
       customerName: s.customer?.name ?? null,

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { UserPlus, UserMinus, UserCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import {
   createUserAction,
   setUserActiveAction,
@@ -14,23 +14,22 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 
 const initialState: UserFormState = {};
-const ROLES: Role[] = ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"];
+const ROLES: Role[] = ["CASHIER", "ACCOUNTANT", "ATTENDANT", "MANAGER", "OTHER", "OWNER"];
 
 const ROLE_HINT: Record<Role, string> = {
-  OWNER: "Everything, including managing employees",
-  MANAGER: "Rates, deliveries, customers, reports",
-  CASHIER: "Sales, credit payments, own shift",
-  ATTENDANT: "Sales and own shift only",
+  OWNER: "Station Admin: 100% full access to all station functions",
+  MANAGER: "Station Manager: Daily operations, rates, purchases, customers, reports",
+  CASHIER: "Shift Cashier: Sales billing, credit payments, own shift",
+  ACCOUNTANT: "Station Accountant: Sales view, expense vouchers, reports & exports",
+  ATTENDANT: "Pump Operator: Assigned nozzle pumps, meter readings, walk-in sales",
+  OTHER: "Other Staff: Custom starting profile",
 };
-
-/* ------------------------------------------------------------------ */
 
 export function AddEmployeeForm() {
   const [state, action, pending] = useActionState(createUserAction, initialState);
 
   return (
     <>
-      {/* Keyed on the success message so the fields — including the password — are cleared once the account exists. */}
       <AddEmployeeFields key={state.message ?? "entering"} action={action} pending={pending} error={state.error} />
       {state.message && (
         <div className="animate-fade-in mt-3 flex items-center gap-2 rounded-lg border border-success/30 bg-success/8 px-3 py-2 text-[12.5px] text-success">
@@ -56,11 +55,19 @@ function AddEmployeeFields({
   return (
     <form action={action} className="flex flex-col gap-4">
       <Field label="Full name" htmlFor="name">
-        <Input id="name" name="name" autoComplete="off" placeholder="Ramesh Thapa" />
+        <Input id="name" name="name" required autoComplete="off" placeholder="Ramesh Thapa" />
       </Field>
 
       <Field label="Username" htmlFor="newUsername">
-        <Input id="newUsername" name="username" autoComplete="off" placeholder="ramesh" />
+        <Input id="newUsername" name="username" required autoComplete="off" placeholder="ramesh" />
+      </Field>
+
+      <Field label="Phone (optional)" htmlFor="newPhone">
+        <Input id="newPhone" name="phone" inputMode="tel" placeholder="98410 22310" />
+      </Field>
+
+      <Field label="Employee ID (optional)" htmlFor="newEmpId">
+        <Input id="newEmpId" name="employeeId" placeholder="EMP-014" />
       </Field>
 
       <Field label="Email (optional)" htmlFor="newEmail">
@@ -72,6 +79,7 @@ function AddEmployeeFields({
           id="newPassword"
           name="password"
           type="password"
+          required
           autoComplete="new-password"
           placeholder="At least 8 characters"
         />
@@ -104,14 +112,11 @@ function AddEmployeeFields({
   );
 }
 
-/* ------------------------------------------------------------------ */
-
-/** Deactivate / reactivate, shown only to an owner. */
+/** Deactivate / reactivate, shown only to a Station Admin. */
 export function ActiveToggle({ userId, active, name }: { userId: string; active: boolean; name: string }) {
   const [state, action, pending] = useActionState(setUserActiveAction, initialState);
   const [confirming, setConfirming] = useState(false);
 
-  // Deactivation signs the person out everywhere, so it asks first.
   if (active && !confirming) {
     return (
       <GhostButton type="button" tone="error" onClick={() => setConfirming(true)} className="px-2.5 py-1.5 text-[12px]">
@@ -142,7 +147,7 @@ export function ActiveToggle({ userId, active, name }: { userId: string; active:
   );
 }
 
-/** Inline role change, shown only to an owner. Signs the person out so new permissions take effect at once. */
+/** Inline role change, shown only to a Station Admin. */
 export function RoleSelect({ userId, role }: { userId: string; role: Role }) {
   const [state, action, pending] = useActionState(changeUserRoleAction, initialState);
   const [next, setNext] = useState<Role>(role);

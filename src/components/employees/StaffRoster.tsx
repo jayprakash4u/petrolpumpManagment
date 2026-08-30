@@ -1,27 +1,29 @@
+"use client";
+
+import { useState } from "react";
 import { clsx } from "clsx";
-import type { Role } from "@prisma/client";
+import { SlidersHorizontal, Phone, Hash } from "lucide-react";
+import type { Role } from "@/lib/permissions";
 import type { EmployeesPageData } from "@/lib/queries/employees";
 import { ROLE_LABEL } from "@/lib/permissions";
 import { initials, fmtDuration } from "@/lib/staff";
 import { fmtRs, fmtL } from "@/lib/money";
 import { fmtBSDateTime } from "@/lib/bs-date";
 import { Badge, type Tone } from "@/components/ui/Badge";
+import { GhostButton } from "@/components/ui/Button";
 import { ShiftButton } from "./ShiftButton";
 import { ActiveToggle, RoleSelect } from "./UserAdmin";
+import { EditStaffModal } from "./EditStaffModal";
 
-const ROLE_TONE: Record<Role, Tone> = {
+const ROLE_TONE: Record<string, Tone> = {
   OWNER: "accent",
   MANAGER: "accent",
   CASHIER: "success",
+  ACCOUNTANT: "success",
   ATTENDANT: "muted",
+  OTHER: "muted",
 };
 
-/**
- * The roster. Everyone sees who's on shift; only a manager or owner sees
- * per-head sales figures, and only an owner sees the admin controls — the
- * page passes those flags down from a server-verified role, and every action
- * re-checks them anyway.
- */
 export function StaffRoster({
   staff,
   currentUserId,
@@ -35,77 +37,123 @@ export function StaffRoster({
   canManageOthers: boolean;
   canManageUsers: boolean;
 }) {
+  const [editingStaff, setEditingStaff] = useState<EmployeesPageData["staff"][number] | null>(null);
+
   return (
-    <div className="flex flex-col gap-2.5">
-      {staff.map((s) => {
-        const isSelf = s.id === currentUserId;
-        const showShiftButton = isSelf || canManageOthers;
+    <>
+      <div className="flex flex-col gap-2.5">
+        {staff.map((s) => {
+          const isSelf = s.id === currentUserId;
+          const showShiftButton = isSelf || canManageOthers;
+          const roleKey = (s.role || "ATTENDANT") as Role;
+          const isCustomized = Boolean(s.permissions && s.role !== "OWNER");
 
-        return (
-          <div
-            key={s.id}
-            className={clsx(
-              "rounded-xl border bg-bg p-3.5",
-              s.onShift ? "border-success/30" : "border-border",
-              !s.active && "opacity-55"
-            )}
-          >
-            <div className="flex flex-wrap items-center gap-3">
-              <div
-                className={clsx(
-                  "font-data flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-                  s.onShift ? "bg-success/15 text-success" : "bg-surface-hi text-text-muted"
-                )}
-              >
-                {initials(s.name)}
-              </div>
-
-              <div className="min-w-[150px] flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-[14.5px] font-semibold text-text">{s.name}</span>
-                  {isSelf && <span className="font-data text-[10px] tracking-wide text-accent">YOU</span>}
+          return (
+            <div
+              key={s.id}
+              className={clsx(
+                "rounded-xl border bg-bg p-3.5 transition-shadow",
+                s.onShift ? "border-success/30 shadow-xs" : "border-border",
+                !s.active && "opacity-55"
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <div
+                  className={clsx(
+                    "font-data flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
+                    s.onShift ? "bg-success/15 text-success" : "bg-surface-hi text-text-muted"
+                  )}
+                >
+                  {initials(s.name)}
                 </div>
-                <div className="font-data mt-0.5 text-[11.5px] text-text-muted">{s.username}</div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <Badge tone={ROLE_TONE[s.role]}>{ROLE_LABEL[s.role].toUpperCase()}</Badge>
-                {!s.active ? (
-                  <Badge tone="error">INACTIVE</Badge>
-                ) : s.onShift ? (
-                  <Badge tone="success">ON SHIFT · {fmtDuration(s.onShiftMinutes)}</Badge>
-                ) : (
-                  <Badge tone="muted">OFF</Badge>
+                <div className="min-w-[150px] flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-display text-[14.5px] font-semibold text-text">{s.name}</span>
+                    {isSelf && <span className="font-data text-[10px] tracking-wide text-accent font-bold">YOU</span>}
+                    {s.employeeId && (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-surface-hi px-1.5 py-0.5 text-[11px] font-mono text-text-muted">
+                        <Hash size={10} />
+                        {s.employeeId}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-data mt-0.5 flex flex-wrap items-center gap-3 text-[11.5px] text-text-muted">
+                    <span>@{s.username}</span>
+                    {s.phone && (
+                      <span className="inline-flex items-center gap-1">
+                        <Phone size={10} />
+                        {s.phone}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={ROLE_TONE[roleKey] || "muted"}>
+                    {(ROLE_LABEL[roleKey] || s.role).toUpperCase()}
+                  </Badge>
+
+                  {isCustomized && (
+                    <Badge tone="accent">CUSTOM PERMS</Badge>
+                  )}
+
+                  {!s.active ? (
+                    <Badge tone="error">INACTIVE</Badge>
+                  ) : s.onShift ? (
+                    <Badge tone="success">ON SHIFT · {fmtDuration(s.onShiftMinutes)}</Badge>
+                  ) : (
+                    <Badge tone="muted">OFF</Badge>
+                  )}
+                </div>
+
+                {s.active && showShiftButton && (
+                  <div className="ml-auto">
+                    <ShiftButton userId={s.id} onShift={s.onShift} compact />
+                  </div>
                 )}
               </div>
 
-              {s.active && showShiftButton && (
-                <div className="ml-auto">
-                  <ShiftButton userId={s.id} onShift={s.onShift} compact />
+              {canSeeFigures && (
+                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 sm:grid-cols-5">
+                  <Figure label="Revenue" value={fmtRs(s.revenue)} accent />
+                  <Figure label="Sales" value={String(s.saleCount)} />
+                  <Figure label="Volume" value={fmtL(s.liters)} />
+                  <Figure label="Avg sale" value={s.averageSale ? fmtRs(s.averageSale) : "—"} />
+                  <Figure label="Share" value={`${s.sharePct.toString()}%`} />
+                </div>
+              )}
+
+              {canManageUsers && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+                  <div>
+                    {s.role !== "OWNER" && (
+                      <GhostButton
+                        type="button"
+                        onClick={() => setEditingStaff(s)}
+                        className="px-2.5 py-1 text-[11.5px]"
+                      >
+                        <SlidersHorizontal size={12} />
+                        Customize Access
+                      </GhostButton>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RoleSelect userId={s.id} role={s.role as Role} />
+                    <ActiveToggle userId={s.id} active={s.active} name={s.name} />
+                  </div>
                 </div>
               )}
             </div>
+          );
+        })}
+      </div>
 
-            {canSeeFigures && (
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 sm:grid-cols-5">
-                <Figure label="Revenue" value={fmtRs(s.revenue)} accent />
-                <Figure label="Sales" value={String(s.saleCount)} />
-                <Figure label="Volume" value={fmtL(s.liters)} />
-                <Figure label="Avg sale" value={s.averageSale ? fmtRs(s.averageSale) : "—"} />
-                <Figure label="Share" value={`${s.sharePct.toString()}%`} />
-              </div>
-            )}
-
-            {canManageUsers && (
-              <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-                <RoleSelect userId={s.id} role={s.role} />
-                <ActiveToggle userId={s.id} active={s.active} name={s.name} />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {editingStaff && (
+        <EditStaffModal user={editingStaff} onClose={() => setEditingStaff(null)} />
+      )}
+    </>
   );
 }
 
@@ -118,14 +166,12 @@ function Figure({ label, value, accent }: { label: string; value: string; accent
   );
 }
 
-/** Recent shifts, so a manager can see who was on the floor when something happened. */
 export function ShiftLog({ shifts }: { shifts: EmployeesPageData["recentShifts"] }) {
   if (shifts.length === 0) {
     return <p className="py-8 text-center text-[13.5px] text-text-muted">No shifts started in this period.</p>;
   }
 
-  const when = (d: Date) =>
-    fmtBSDateTime(d);
+  const when = (d: Date) => fmtBSDateTime(d);
 
   return (
     <ul className="flex flex-col gap-2">

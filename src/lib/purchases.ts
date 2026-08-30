@@ -1,4 +1,4 @@
-import { type FuelType } from "@prisma/client";
+import type { FuelType } from "@/lib/permissions";
 
 export interface Supplier {
   id: string;

@@ -22,6 +22,8 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Database,
+  HardDrive,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -99,6 +101,13 @@ export function OnboardStationForm() {
               <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Temporary Password</span>
               <div className="font-mono text-sm font-bold text-text">{state.invitationPacket.adminPassword}</div>
             </div>
+
+            {state.invitationPacket.databaseName && (
+              <div className="rounded-xl border border-border/80 bg-surface p-3.5 space-y-1">
+                <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Dedicated Database</span>
+                <div className="font-mono text-xs font-bold text-emerald-400">[{state.invitationPacket.databaseName}]</div>
+              </div>
+            )}
 
             <div className="rounded-xl border border-border/80 bg-surface p-3.5 space-y-1 sm:col-span-2">
               <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Station Admin Contact</span>
@@ -183,6 +192,10 @@ function OnboardFields({
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
 
+  // Dedicated Database State
+  const [databaseName, setDatabaseName] = useState("");
+  const [dbTouched, setDbTouched] = useState(false);
+
   // Station Admin State
   const [adminName, setAdminName] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
@@ -192,8 +205,11 @@ function OnboardFields({
   const [adminPassword, setAdminPassword] = useState("pass1234");
   const [showPassword, setShowPassword] = useState(false);
 
-  // Auto-generate slug and username dynamically
+  // Auto-generate slug, database name and username dynamically
   const effectiveSlug = slugTouched ? slug : slugFromName(name);
+  const defaultDbName = effectiveSlug ? `FuelStation_${effectiveSlug.replace(/-/g, "_")}` : "";
+  const effectiveDbName = dbTouched ? databaseName : defaultDbName;
+
   const effectiveUsername = usernameTouched
     ? adminUsername
     : adminName
@@ -339,12 +355,78 @@ function OnboardFields({
         </div>
       </div>
 
-      {/* SECTION 3: Station Admin / Initial Owner Account */}
+      {/* SECTION 3: Dedicated SQL Server Database Configuration */}
+      <div className="rounded-2xl border border-border bg-bg/50 p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-2.5">
+          <div className="flex items-center gap-2">
+            <Database size={17} className="text-accent" />
+            <h4 className="font-display text-sm font-bold text-text">
+              3. Dedicated SQL Server Database Name (डाटाबेस नाम)
+            </h4>
+          </div>
+          <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <HardDrive size={11} /> 100% Isolated
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex-1 min-w-[240px]">
+              <Field label="SQL Server Database Name" htmlFor="databaseName">
+                <Input
+                  id="databaseName"
+                  name="databaseName"
+                  value={effectiveDbName}
+                  onChange={(e) => {
+                    setDbTouched(true);
+                    setDatabaseName(e.target.value.replace(/[^a-zA-Z0-9_]/g, "_"));
+                  }}
+                  placeholder="FuelStation_bagmati_petroleum"
+                  required
+                />
+              </Field>
+            </div>
+
+            {dbTouched && (
+              <div className="pt-6">
+                <GhostButton
+                  type="button"
+                  onClick={() => {
+                    setDbTouched(false);
+                    setDatabaseName("");
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/10"
+                >
+                  <RefreshCw size={13} />
+                  Reset to Default
+                </GhostButton>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border/80 bg-surface p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-text-muted">Target SQL Server:</span>
+              <code className="font-mono font-bold text-text">localhost:1435</code>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-text-muted">Provisioning Target:</span>
+              <code className="font-mono font-bold text-accent">[{effectiveDbName || "FuelStation_station"}]</code>
+            </div>
+          </div>
+
+          <p className="text-[11.5px] text-text-muted">
+            The dedicated Microsoft SQL Server database that will be created on the fly. All forecourt sales, tanks, customer ledgers, and staff records for this station will be physically isolated inside this database.
+          </p>
+        </div>
+      </div>
+
+      {/* SECTION 4: Station Admin / Initial Owner Account */}
       <div className="rounded-2xl border border-border bg-bg/50 p-5 space-y-4">
         <div className="flex items-center gap-2 border-b border-border pb-2.5">
           <ShieldCheck size={17} className="text-accent" />
           <h4 className="font-display text-sm font-bold text-text">
-            3. Station Admin Credentials (सञ्चालक / व्यवस्थापक खाता)
+            4. Station Admin Credentials (सञ्चालक / व्यवस्थापक खाता)
           </h4>
         </div>
 

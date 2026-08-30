@@ -1,6 +1,6 @@
-// Fuel Station Manager — database schema
+// Fuel Station Manager — database schema (Microsoft SQL Server production/dev)
 //
-// Money and volume are stored as fixed-point Decimal (Postgres NUMERIC), never
+// Money and volume are stored as fixed-point Decimal, never
 // float, so totals reconcile exactly. Every mutation that touches stock, cash,
 // or credit balances happens inside a DB transaction (see src/lib/actions/*)
 // and is mirrored into AuditLog for traceability.
@@ -10,51 +10,15 @@ generator client {
 }
 
 datasource db {
-  // Local dev uses SQLite (zero-config, file-based) so the app runs
-  // immediately with no server to install. For production, switch this to
-  // "postgresql" (recommended) or "sqlserver" and point DATABASE_URL at a
-  // real server — the Decimal fields below work unchanged; optionally add
-  // back precision, e.g. `@db.Decimal(12, 3)`, once on a provider that
-  // supports native decimal types. See README "Switching databases".
-  provider = "sqlite"
+  provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  OWNER // full control: users, rates, everything
-  MANAGER // rates, purchases, customers, reports — not user management
-  CASHIER // sales, credit payments, own shift
-  ATTENDANT // sales, own shift only
-}
-
-enum FuelType {
-  PETROL
-  DIESEL
-  CNG
-}
-
-enum PaymentMethod {
-  CASH
-  CREDIT
-}
-
-/// A single station. Modeled explicitly (rather than assuming one global
-/// station) so the schema doesn't need reshaping if a second location is
-/// added later — auth and queries are already scoped by stationId.
 /// A platform operator — the people who run this SaaS, not the people who run
 /// a petrol pump.
-///
-/// Deliberately a SEPARATE TABLE rather than another value in `Role`. If
-/// "platform admin" were a Role, a station owner could hand it out with the
-/// ordinary role-change form (src/lib/actions/users.ts) and escalate from
-/// their own tenant to every tenant. There is no code path between this table
-/// and `User`, so that promotion cannot be expressed at all.
 model PlatformAdmin {
   id           String   @id @default(cuid())
-  /// The login credential. Globally unique: platform accounts live above
-  /// tenancy, so unlike `User.username` there is no station to scope them to.
   username     String   @unique
-  /// Optional contact detail only — not used to sign in.
   email        String?
   name         String
   passwordHash String
@@ -66,14 +30,12 @@ model PlatformAdmin {
   auditLogs PlatformAuditLog[]
 }
 
-/// Sessions for the platform plane. A separate table *and* a separate cookie
-/// from `Session`, so a tenant session can never be mistaken for an operator
-/// session (or upgraded into one) by any code that reads only one of them.
+/// Sessions for the platform plane.
 model PlatformSession {
-  id        String    @id @default(cuid())
+  id        String        @id @default(cuid())
   adminId   String
-  admin     PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
+  admin     PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdAt DateTime      @default(now())
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?
@@ -82,46 +44,53 @@ model PlatformSession {
   @@index([adminId])
 }
 
-/// Append-only trail of operator actions. Kept apart from `AuditLog`, which
-/// belongs to a tenant and is scoped by stationId — these events are about
-/// tenants, and some (creating one) happen before a station exists.
+/// Append-only trail of operator actions.
 model PlatformAuditLog {
-  id         String        @id @default(cuid())
+  id         String         @id @default(cuid())
   actorId    String?
-  actor      PlatformAdmin? @relation(fields: [actorId], references: [id])
+  actor      PlatformAdmin? @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   action     String
   entityType String
   entityId   String
-  metadata   Json?
-  createdAt  DateTime      @default(now())
+  metadata   String?        @db.NVarChar(Max)
+  createdAt  DateTime       @default(now())
 
   @@index([createdAt])
   @@index([entityType, entityId])
 }
 
-model Station {
-  id String @id @default(cuid())
-  /// Short, stable, human-typeable tenant code ("shree-petroleum"). It is
-  /// what a member of staff types at login to say *which* pump they work at,
-  /// and the only globally unique identifier a tenant exposes. Kept separate
-  /// from `name` so a station can be renamed without breaking every login.
-  slug          String   @unique
-  name        String
-  companyName String?
-  phone       String?
-  email       String?
-  address     String
-  /// Set when the platform suspends this tenant (non-payment, abuse). While
-  /// set, nobody at the station can sign in, and every live session was
-  /// revoked at the moment of suspension. Nullable rather than a boolean so
-  /// the trail records *when* it happened.
+/// Multi-Tenant Station Registry for Master Database.
+model Tenant {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  companyName     String?
+  databaseName    String    @unique
+  databaseServer  String    @default("localhost:1435")
+  status          String    @default("ACTIVE") // ACTIVE, SUSPENDED
+  phone           String?
+  email           String?
+  address         String
   suspendedAt     DateTime?
   suspendedReason String?
   createdAt       DateTime  @default(now())
-  /// Monotonically increasing counter used to mint sequential, gap-free
-  /// receipt numbers per station (incremented atomically inside the sale
-  /// transaction — see src/lib/actions/sales.ts).
-  nextReceiptNo Int      @default(1)
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+}
+
+model Station {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  companyName     String?
+  phone           String?
+  email           String?
+  address         String
+  suspendedAt     DateTime?
+  suspendedReason String?
+  createdAt       DateTime  @default(now())
+  nextReceiptNo   Int       @default(1)
 
   users     User[]
   tanks     Tank[]
@@ -134,17 +103,15 @@ model Station {
 model User {
   id             String    @id @default(cuid())
   stationId      String
-  station        Station   @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  station        Station   @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   name           String
-  /// The login credential. Unique *per station*, not globally — see the
-  /// @@unique below.
   username       String
-  /// Optional contact detail only — NOT a credential. Many pump staff have no
-  /// work email, and requiring one produced addresses nobody reads and nobody
-  /// can recover a password through.
   email          String?
+  phone          String?
+  employeeId     String?
   passwordHash   String
-  role           Role
+  role           String    // OWNER, MANAGER, CASHIER, ACCOUNTANT, ATTENDANT, OTHER
+  permissions    String?   @db.NVarChar(Max)
   active         Boolean   @default(true)
   onShift        Boolean   @default(false)
   shiftStartedAt DateTime?
@@ -160,24 +127,15 @@ model User {
   shifts           Shift[]
   endedShiftsAdmin Shift[]           @relation("ShiftEndedBy")
 
-  /// Tenancy boundary for identity. A global unique would mean one person
-  /// could only ever work at one station in the entire system, and — worse —
-  /// would let any station owner probe whether a username is taken somewhere
-  /// else by watching "already exists" errors. Scoping it per station removes
-  /// both problems; logins are resolved by (station code, username), never by
-  /// username alone.
   @@unique([stationId, username])
   @@index([stationId])
 }
 
-/// Server-side session record. The httpOnly cookie carries a signed JWT whose
-/// only job is to name this row (jti) — the row itself is the source of
-/// truth, so revoking a user's sessions (deactivation, role change, logout)
-/// takes effect immediately instead of waiting out a stateless token's TTL.
+/// Server-side session record.
 model Session {
   id        String    @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   createdAt DateTime  @default(now())
   expiresAt DateTime
   revokedAt DateTime?
@@ -190,13 +148,13 @@ model Session {
 model Tank {
   id          String   @id @default(cuid())
   stationId   String
-  station     Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
-  fuel        FuelType
-  capacityL   Decimal
-  levelL      Decimal
-  openingL    Decimal
-  ratePerL    Decimal
-  lowStockPct Decimal  @default(20)
+  station     Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fuel        String   // PETROL, DIESEL, CNG
+  capacityL   Decimal  @db.Decimal(12, 3)
+  levelL      Decimal  @db.Decimal(12, 3)
+  openingL    Decimal  @db.Decimal(12, 3)
+  ratePerL    Decimal  @db.Decimal(10, 2)
+  lowStockPct Decimal  @default(20) @db.Decimal(5, 2)
   updatedAt   DateTime @updatedAt
 
   sales       Sale[]
@@ -209,11 +167,11 @@ model Tank {
 model FuelRateHistory {
   id          String   @id @default(cuid())
   tankId      String
-  tank        Tank     @relation(fields: [tankId], references: [id], onDelete: Restrict)
-  oldRate     Decimal
-  newRate     Decimal
+  tank        Tank     @relation(fields: [tankId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  oldRate     Decimal  @db.Decimal(10, 2)
+  newRate     Decimal  @db.Decimal(10, 2)
   changedById String
-  changedBy   User     @relation("RateChangedBy", fields: [changedById], references: [id])
+  changedBy   User     @relation("RateChangedBy", fields: [changedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   changedAt   DateTime @default(now())
 
   @@index([tankId])
@@ -222,11 +180,11 @@ model FuelRateHistory {
 model Customer {
   id          String   @id @default(cuid())
   stationId   String
-  station     Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  station     Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   name        String
   phone       String?
-  creditLimit Decimal  @default(0)
-  dueAmount   Decimal  @default(0)
+  creditLimit Decimal  @default(0) @db.Decimal(12, 2)
+  dueAmount   Decimal  @default(0) @db.Decimal(12, 2)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 
@@ -237,28 +195,24 @@ model Customer {
 }
 
 model Sale {
-  id            String        @id @default(cuid())
+  id            String    @id @default(cuid())
   receiptNo     Int
   stationId     String
-  station       Station       @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  station       Station   @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tankId        String
-  tank          Tank          @relation(fields: [tankId], references: [id])
-  fuel          FuelType
-  liters        Decimal
-  ratePerL      Decimal
-  totalAmount   Decimal
-  paymentMethod PaymentMethod
+  tank          Tank      @relation(fields: [tankId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fuel          String    // PETROL, DIESEL, CNG
+  liters        Decimal   @db.Decimal(12, 3)
+  ratePerL      Decimal   @db.Decimal(10, 2)
+  totalAmount   Decimal   @db.Decimal(12, 2)
+  paymentMethod String    // CASH, CREDIT
   customerId    String?
-  customer      Customer?     @relation(fields: [customerId], references: [id])
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   soldById      String
-  soldBy        User          @relation(fields: [soldById], references: [id])
-  createdAt     DateTime      @default(now())
+  soldBy        User      @relation(fields: [soldById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt     DateTime  @default(now())
 
-  /// Vehicle the fuel went into, normalised (see src/lib/vehicle.ts).
-  /// Optional because a walk-in with a jerry can has no plate, but it is what
-  /// makes vehicle-wise billing and the VCTS consignment records possible.
-  vehicleNo String?
-
+  vehicleNo  String?
   voided     Boolean   @default(false)
   voidedAt   DateTime?
   voidReason String?
@@ -266,23 +220,22 @@ model Sale {
   @@unique([stationId, receiptNo])
   @@index([stationId, createdAt])
   @@index([customerId])
-  /// Vehicle-wise billing filters on this; without it the lookup is a table scan.
   @@index([stationId, vehicleNo])
 }
 
 model Purchase {
   id           String   @id @default(cuid())
   stationId    String
-  station      Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  station      Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tankId       String
-  tank         Tank     @relation(fields: [tankId], references: [id])
-  fuel         FuelType
-  liters       Decimal
-  totalCost    Decimal
+  tank         Tank     @relation(fields: [tankId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fuel         String   // PETROL, DIESEL, CNG
+  liters       Decimal  @db.Decimal(12, 3)
+  totalCost    Decimal  @db.Decimal(12, 2)
   supplier     String
   invoiceNo    String?
   recordedById String
-  recordedBy   User     @relation("PurchaseRecordedBy", fields: [recordedById], references: [id])
+  recordedBy   User     @relation("PurchaseRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt    DateTime @default(now())
 
   @@index([stationId, createdAt])
@@ -291,10 +244,10 @@ model Purchase {
 model CustomerPayment {
   id           String   @id @default(cuid())
   customerId   String
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  amount       Decimal
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amount       Decimal  @db.Decimal(12, 2)
   recordedById String
-  recordedBy   User     @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  recordedBy   User     @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt    DateTime @default(now())
 
   @@index([customerId])
@@ -303,27 +256,26 @@ model CustomerPayment {
 model Shift {
   id        String    @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   startedAt DateTime  @default(now())
   endedAt   DateTime?
   endedById String?
-  endedBy   User?     @relation("ShiftEndedBy", fields: [endedById], references: [id])
+  endedBy   User?     @relation("ShiftEndedBy", fields: [endedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([userId])
 }
 
-/// Append-only trail for every state-changing action. Never updated or
-/// deleted by application code.
+/// Append-only trail for every state-changing action.
 model AuditLog {
   id         String   @id @default(cuid())
   stationId  String
-  station    Station  @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  station    Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   actorId    String?
-  actor      User?    @relation(fields: [actorId], references: [id])
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   action     String
   entityType String
   entityId   String
-  metadata   Json?
+  metadata   String?  @db.NVarChar(Max)
   createdAt  DateTime @default(now())
 
   @@index([stationId, createdAt])

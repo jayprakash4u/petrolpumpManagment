@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Store,
   Layers,
+  Settings,
+  KeyRound,
 } from "lucide-react";
 import { requirePlatformAdmin } from "@/lib/platform-dal";
 import { getPlatformOverview } from "@/lib/queries/platform";
@@ -161,7 +163,14 @@ export default async function AdminStationsPage() {
                       <span className="font-mono text-[10.5px]">{s.id}</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/admin/stations/${s.slug}`}
+                        className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-hi px-3 py-1.5 text-[12px] font-bold text-text hover:border-accent/40 hover:text-accent transition-all cursor-pointer"
+                      >
+                        <KeyRound size={13} className="text-accent" />
+                        Manage Station & Passwords
+                      </Link>
                       <SuspendControl
                         stationId={s.id}
                         name={s.name}

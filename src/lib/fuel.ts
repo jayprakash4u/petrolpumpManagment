@@ -1,10 +1,9 @@
-import type { FuelType } from "@prisma/client";
+import type { FuelType } from "@/lib/permissions";
 
-/** Re-exported as a plain string-literal alias so non-Prisma-aware modules (pure UI) don't need to import the Prisma enum type directly. */
 export type FuelId = FuelType;
 export type FuelKey = FuelType;
 
-export const FUEL_LABEL: Record<FuelId, string> = {
+export const FUEL_LABEL: Record<string, string> = {
   PETROL: "Petrol",
   DIESEL: "Diesel",
   CNG: "CNG",
@@ -12,4 +11,4 @@ export const FUEL_LABEL: Record<FuelId, string> = {
 
 export const FUEL_LABELS = FUEL_LABEL;
 
-export const FUEL_ORDER: FuelId[] = ["PETROL", "DIESEL", "CNG"];
+export const FUEL_ORDER: FuelType[] = ["PETROL", "DIESEL", "CNG"];

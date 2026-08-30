@@ -2,7 +2,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
-import { prisma } from "@/lib/db";
+import { getMasterDb } from "@/lib/tenant-db";
 
 /**
  * Session handling for the *platform* plane — the operators who run this
@@ -43,8 +43,9 @@ async function verifyAdminToken(token: string): Promise<string | null> {
 }
 
 export async function createAdminSession(adminId: string, meta: { userAgent?: string; ipAddress?: string }) {
+  const master = getMasterDb();
   const expiresAt = new Date(Date.now() + ADMIN_TTL_MS);
-  const session = await prisma.platformSession.create({
+  const session = await master.platformSession.create({
     data: { adminId, expiresAt, userAgent: meta.userAgent, ipAddress: meta.ipAddress },
   });
   const token = await signAdminToken(session.id);
@@ -72,7 +73,8 @@ export async function readAdminSession() {
   const psid = await verifyAdminToken(token);
   if (!psid) return null;
 
-  const session = await prisma.platformSession.findUnique({
+  const master = getMasterDb();
+  const session = await master.platformSession.findUnique({
     where: { id: psid },
     include: { admin: true },
   });
@@ -90,7 +92,8 @@ export async function destroyAdminSession() {
   if (!token) return;
   const psid = await verifyAdminToken(token);
   if (!psid) return;
-  await prisma.platformSession.updateMany({
+  const master = getMasterDb();
+  await master.platformSession.updateMany({
     where: { id: psid, revokedAt: null },
     data: { revokedAt: new Date() },
   });

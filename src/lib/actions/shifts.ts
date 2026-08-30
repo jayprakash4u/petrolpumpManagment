@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role } from "@/lib/permissions";
 import { shiftMinutes, fmtDuration } from "@/lib/staff";
 
 export interface ShiftFormState {
@@ -15,20 +15,17 @@ export interface ShiftFormState {
 class ShiftError extends Error {}
 
 /**
- * Starting a shift is the moment a person becomes accountable for the till,
- * so the two writes — the `Shift` row and the `User.onShift` flag — must
- * agree. They happen in one transaction, and the flag is flipped with a
- * guarded update so a double-click can't open two overlapping shifts.
+ * Starting a shift is the moment a person becomes accountable for the till.
  */
 export async function startShiftAction(_prev: ShiftFormState, formData: FormData): Promise<ShiftFormState> {
   const actor = await requireUser();
   const targetId = String(formData.get("userId") ?? "") || actor.id;
   const isSelf = targetId === actor.id;
 
-  if (isSelf && !can(actor.role, "manageOwnShift")) {
+  if (isSelf && !can(actor.role as Role, "manageOwnShift")) {
     return { error: "Your role can't start a shift." };
   }
-  if (!isSelf && !can(actor.role, "manageOtherShifts")) {
+  if (!isSelf && !can(actor.role as Role, "manageOtherShifts")) {
     return { error: "Only an owner or manager can start someone else's shift." };
   }
 
@@ -40,7 +37,6 @@ export async function startShiftAction(_prev: ShiftFormState, formData: FormData
 
       const startedAt = new Date();
 
-      // Guarded flip: only succeeds if they were genuinely off shift.
       const flipped = await tx.user.updateMany({
         where: { id: target.id, onShift: false },
         data: { onShift: true, shiftStartedAt: startedAt },
@@ -58,7 +54,7 @@ export async function startShiftAction(_prev: ShiftFormState, formData: FormData
           action: "SHIFT_STARTED",
           entityType: "User",
           entityId: target.id,
-          metadata: { startedBy: actor.name, self: isSelf },
+          metadata: JSON.stringify({ startedBy: actor.name, self: isSelf }),
         },
       });
 
@@ -80,10 +76,10 @@ export async function endShiftAction(_prev: ShiftFormState, formData: FormData):
   const targetId = String(formData.get("userId") ?? "") || actor.id;
   const isSelf = targetId === actor.id;
 
-  if (isSelf && !can(actor.role, "manageOwnShift")) {
+  if (isSelf && !can(actor.role as Role, "manageOwnShift")) {
     return { error: "Your role can't end a shift." };
   }
-  if (!isSelf && !can(actor.role, "manageOtherShifts")) {
+  if (!isSelf && !can(actor.role as Role, "manageOtherShifts")) {
     return { error: "Only an owner or manager can end someone else's shift." };
   }
 
@@ -102,10 +98,6 @@ export async function endShiftAction(_prev: ShiftFormState, formData: FormData):
         throw new ShiftError(`${target.name} isn't on shift.`);
       }
 
-      // Close the open shift row. There should be exactly one; if an earlier
-      // crash left the flag and the row out of step, close the most recent
-      // open one rather than failing and stranding the user "on shift"
-      // forever with no way back.
       const open = await tx.shift.findFirst({
         where: { userId: target.id, endedAt: null },
         orderBy: { startedAt: "desc" },
@@ -127,12 +119,12 @@ export async function endShiftAction(_prev: ShiftFormState, formData: FormData):
           action: "SHIFT_ENDED",
           entityType: "User",
           entityId: target.id,
-          metadata: {
+          metadata: JSON.stringify({
             endedBy: actor.name,
             self: isSelf,
             minutes,
             orphanedFlag: open === null,
-          },
+          }),
         },
       });
 

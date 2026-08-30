@@ -14,7 +14,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { Role, User } from "@prisma/client";
+import type { User } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 
 // Point the Prisma singleton at a scratch database *before* src/lib/db.ts is
 // imported anywhere — it reads DATABASE_URL at module load.

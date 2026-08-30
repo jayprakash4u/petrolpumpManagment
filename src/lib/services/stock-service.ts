@@ -86,11 +86,11 @@ export class StockService {
           action: "FUEL_RATE_UPDATED",
           entityType: "Tank",
           entityId: tank.id,
-          metadata: {
+          metadata: JSON.stringify({
             fuel: tank.fuel,
             oldRate: oldRate.toString(),
             newRate: newRate.toString(),
-          },
+          }),
         },
       });
 
@@ -149,13 +149,13 @@ export class StockService {
           action: "PURCHASE_RECORDED",
           entityType: "Purchase",
           entityId: purchase.id,
-          metadata: {
+          metadata: JSON.stringify({
             fuel: tank.fuel,
             liters: liters.toString(),
             totalCost: totalCost.toString(),
             supplier: input.supplier,
             tankLevelAfter: newLevel.toString(),
-          },
+          }),
         },
       });
 

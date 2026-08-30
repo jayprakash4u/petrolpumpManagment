@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { requireTenantDb } from "@/lib/tenant-db";
 import { creditHeadroom } from "@/lib/sale-math";
 
 const D = Prisma.Decimal;
@@ -57,20 +57,21 @@ const mapSale = (s: any): SerializedSale => {
 };
 
 /**
- * Everything the Sales Entry page renders.
+ * Everything the Sales Entry page renders from the station's dedicated database.
  */
-export async function getSalesPageData(stationId: string) {
+export async function getSalesPageData(_stationId?: string) {
+  const { prisma: tenantDb, stationId } = await requireTenantDb();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
   const [tanks, customers, recentSalesRaw, todayAgg] = await Promise.all([
-    prisma.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
-    prisma.customer.findMany({
+    tenantDb.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
+    tenantDb.customer.findMany({
       where: { stationId, active: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true, creditLimit: true, dueAmount: true },
     }),
-    prisma.sale.findMany({
+    tenantDb.sale.findMany({
       where: { stationId },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -79,7 +80,7 @@ export async function getSalesPageData(stationId: string) {
         soldBy: { select: { name: true } },
       },
     }),
-    prisma.sale.aggregate({
+    tenantDb.sale.aggregate({
       where: { stationId, createdAt: { gte: startOfToday }, voided: false },
       _sum: { totalAmount: true, liters: true },
       _count: true,
@@ -112,9 +113,10 @@ export async function getSalesPageData(stationId: string) {
 /**
  * Dedicated data query for the Sales Returns / Credit Notes register.
  */
-export async function getSalesReturnsPageData(stationId: string) {
+export async function getSalesReturnsPageData(_stationId?: string) {
+  const { prisma: tenantDb, stationId } = await requireTenantDb();
   const [voidedRaw, activeRaw] = await Promise.all([
-    prisma.sale.findMany({
+    tenantDb.sale.findMany({
       where: { stationId, voided: true },
       orderBy: { voidedAt: "desc" },
       take: 100,
@@ -123,10 +125,10 @@ export async function getSalesReturnsPageData(stationId: string) {
         soldBy: { select: { name: true } },
       },
     }),
-    prisma.sale.findMany({
+    tenantDb.sale.findMany({
       where: { stationId, voided: false },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 200,
       include: {
         customer: { select: { id: true, name: true } },
         soldBy: { select: { name: true } },

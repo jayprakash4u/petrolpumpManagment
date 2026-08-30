@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Fuel, ChevronRight } from "lucide-react";
 import { NAV, type NavItem } from "./nav";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 
 /** True when this item, or any of its children, is the page being viewed. */
 function containsActive(item: NavItem, activeHref: string): boolean {
@@ -84,7 +84,7 @@ function ExpandableRow({ item, activeHref }: { item: NavItem; activeHref: string
   );
 }
 
-export function SidebarContent({ activeHref }: { activeHref: string; role?: Role }) {
+export function SidebarContent({ activeHref, role }: { activeHref: string; role?: Role | string }) {
   return (
     <>
       <div className="mb-7 flex items-center gap-2.5 px-2">
@@ -116,7 +116,7 @@ export function SidebarContent({ activeHref }: { activeHref: string; role?: Role
   );
 }
 
-export function Sidebar({ activeHref, role }: { activeHref: string; role?: Role }) {
+export function Sidebar({ activeHref, role }: { activeHref: string; role?: Role | string }) {
   return (
     <aside className="hidden h-screen w-[268px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px] md:sticky md:top-0 md:flex">
       <SidebarContent activeHref={activeHref} role={role} />

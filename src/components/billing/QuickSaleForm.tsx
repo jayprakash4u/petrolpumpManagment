@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Zap, Banknote } from "lucide-react";
 import { clsx } from "clsx";
-import type { FuelType } from "@prisma/client";
+import type { FuelType } from "@/lib/permissions";
 import { Field, Input } from "@/components/ui/Field";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 

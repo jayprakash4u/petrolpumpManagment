@@ -1,5 +1,6 @@
 import "server-only";
-import { Prisma, type FuelType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { FuelType } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import type { BillFilters } from "@/lib/bill-filters";
 import { fmtBSDate } from "@/lib/bs-date";
@@ -323,7 +324,7 @@ export async function getVehicleBillingData(
       dateBS: fmtBSDate(d),
       time: d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }),
       createdAt: s.createdAt.toISOString(),
-      fuel: s.fuel,
+      fuel: s.fuel as FuelType,
       liters,
       rate,
       amount,
@@ -337,7 +338,7 @@ export async function getVehicleBillingData(
         vehicleNo: plate,
         customerName: s.customer?.name ?? null,
         customerId: s.customerId ?? null,
-        primaryFuel: s.fuel,
+        primaryFuel: s.fuel as FuelType,
         fillCount: 1,
         totalLiters: liters,
         totalAmount: amount,

@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role } from "@/lib/permissions";
 import { getSalesReturnsPageData } from "@/lib/queries/sales";
 import { Card } from "@/components/ui/Card";
 import { Lock } from "lucide-react";
@@ -8,7 +8,7 @@ import { SalesReturnsView } from "@/components/sales/SalesReturnsView";
 export default async function SalesReturnsPage() {
   const user = await requireUser();
 
-  const canVoid = can(user.role, "voidSale");
+  const canVoid = can(user.role as Role, "voidSale");
 
   const data = await getSalesReturnsPageData(user.stationId);
 

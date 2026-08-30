@@ -16,7 +16,7 @@ import {
   Truck,
   RotateCcw,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import { type ApprovalRule, type ApprovalWorkflowType, WORKFLOW_CONFIG } from "@/lib/approvals";
 import { getApprovalRules, updateApprovalRule, resetMockApprovals } from "@/lib/mock/approvals";
 import { fmtRs } from "@/lib/money";
@@ -36,19 +36,19 @@ const WORKFLOW_ICONS: Record<ApprovalWorkflowType, React.ComponentType<{ size?: 
   PURCHASE_INVOICE_RELEASE: Truck,
 };
 
-const ALL_ROLES: Role[] = ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"];
+const ALL_ROLES: Role[] = ["OWNER", "MANAGER", "CASHIER", "ACCOUNTANT", "ATTENDANT", "OTHER"];
 
 export function ApprovalRulesView({
   currentUser,
 }: {
-  currentUser: { id: string; name: string; role: Role; username: string };
+  currentUser: { id: string; name: string; role: Role | string; username: string };
 }) {
   const [rules, setRules] = useState<ApprovalRule[]>(() => getApprovalRules());
   const [editingRule, setEditingRule] = useState<ApprovalRule | null>(null);
   const [minThreshold, setMinThreshold] = useState("");
   const [dualThreshold, setDualThreshold] = useState("");
   const [requireDual, setRequireDual] = useState(false);
-  const [approverRoles, setApproverRoles] = useState<Role[]>([]);
+  const [approverRoles, setApproverRoles] = useState<(Role | string)[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
   const canEdit = currentUser.role === "OWNER";

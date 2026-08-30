@@ -1,6 +1,6 @@
 import { Fuel, IndianRupee, Truck, History, AlertTriangle, Warehouse } from "lucide-react";
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role } from "@/lib/permissions";
 import { getStockPageData } from "@/lib/queries/stock";
 import { Card } from "@/components/ui/Card";
 import { SectionTitle } from "@/components/ui/SectionTitle";
@@ -53,12 +53,12 @@ export default async function StockPage() {
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <SectionTitle icon={Truck} title="Record Delivery" subtitle="Adds fuel to the tank against a supplier invoice" />
-          <DeliveryForm tanks={data.tankOptions} canRecord={can(user.role, "recordPurchase")} />
+          <DeliveryForm tanks={data.tankOptions} canRecord={can(user.role as Role, "recordPurchase")} />
         </Card>
 
         <Card>
           <SectionTitle icon={IndianRupee} title="Change Pump Rate" subtitle="Applies to every sale from now on" />
-          <RateEditor tanks={data.tankOptions} canEdit={can(user.role, "editFuelRate")} />
+          <RateEditor tanks={data.tankOptions} canEdit={can(user.role as Role, "editFuelRate")} />
         </Card>
       </div>
 

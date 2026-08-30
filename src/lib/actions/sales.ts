@@ -1,11 +1,10 @@
 "use server";
 
 import * as z from "zod";
-import { Prisma, PaymentMethod, type FuelType } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/dal";
-import { can, ForbiddenError } from "@/lib/permissions";
+import { requireTenantDb } from "@/lib/tenant-db";
+import { can, ForbiddenError, type Role, type PaymentMethod, type FuelType } from "@/lib/permissions";
 import { deriveSale, checkLiters, creditHeadroom, type SaleMode } from "@/lib/sale-math";
 import { fmtRs, fmtL, fmtRate } from "@/lib/money";
 import { fmtBSDateTime } from "@/lib/bs-date";
@@ -20,25 +19,33 @@ const D = Prisma.Decimal;
  */
 export interface ReceiptDTO {
   receiptNo: number;
+  billNumber: string;
   stationName: string;
   fuelLabel: string;
   liters: string;
   rate: string;
   total: string;
+  subtotal?: string;
+  taxableAmount?: string;
+  vatAmount?: string;
+  discount?: string;
   paymentMethod: "CASH" | "CREDIT" | "ONLINE" | "CARD";
   onlineProvider?: string | null;
   paymentRef?: string | null;
   customerName: string | null;
+  vehicleNo?: string | null;
   changeDue: string | null;
   soldBy: string;
   at: string;
+  dateBS: string;
 }
 
 export interface SaleFormState {
   error?: string;
-  /** Set on success — the client renders (and offers to print) this. */
   receipt?: ReceiptDTO;
 }
+
+const FUEL_LABELS: Record<string, string> = { PETROL: "Petrol", DIESEL: "Diesel", CNG: "CNG" };
 
 const SaleSchema = z.object({
   tankId: z.string().min(1, "Choose a fuel"),
@@ -48,12 +55,9 @@ const SaleSchema = z.object({
   onlineProvider: z.string().optional(),
   paymentRef: z.string().optional(),
   customerId: z.string().optional(),
+  vehicleNo: z.string().optional(),
+  discountAmount: z.string().optional(),
   cashTendered: z.string().optional(),
-  /**
-   * The rate the operator was actually looking at when they hit Record. If a
-   * manager changed the pump rate in another tab mid-sale, this won't match
-   * and we refuse rather than silently billing at a price nobody agreed to.
-   */
   expectedRate: z.string().min(1),
 });
 
@@ -69,11 +73,9 @@ function decimalOrNull(raw: string | undefined): Prisma.Decimal | null {
   }
 }
 
-const FUEL_LABELS: Record<FuelType, string> = { PETROL: "Petrol", DIESEL: "Diesel", CNG: "CNG" };
-
 export async function recordSaleAction(_prev: SaleFormState, formData: FormData): Promise<SaleFormState> {
-  const user = await requireUser();
-  if (!can(user.role, "recordSale")) {
+  const { prisma: tenantDb, stationId, user } = await requireTenantDb();
+  if (!can(user.role as Role, "recordSale")) {
     return { error: new ForbiddenError("recordSale").message };
   }
 
@@ -85,6 +87,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
     onlineProvider: formData.get("onlineProvider") ?? undefined,
     paymentRef: formData.get("paymentRef") ?? undefined,
     customerId: formData.get("customerId") ?? undefined,
+    vehicleNo: formData.get("vehicleNo") ?? undefined,
+    discountAmount: formData.get("discountAmount") ?? undefined,
     cashTendered: formData.get("cashTendered") ?? undefined,
     expectedRate: formData.get("expectedRate"),
   });
@@ -100,10 +104,10 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
   }
 
   try {
-    const receipt = await prisma.$transaction(async (tx) => {
+    const receipt = await tenantDb.$transaction(async (tx) => {
       // Read the tank *inside* the transaction: the rate and level used for
       // the arithmetic must be the same ones the guarded update below tests.
-      const tank = await tx.tank.findFirst({ where: { id: input.tankId, stationId: user.stationId } });
+      const tank = await tx.tank.findFirst({ where: { id: input.tankId, stationId } });
       if (!tank) throw new SaleError("That fuel isn't available at this station.");
 
       if (!tank.ratePerL.equals(new D(input.expectedRate))) {
@@ -193,6 +197,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           totalAmount,
           paymentMethod: input.paymentMethod === "CREDIT" ? "CREDIT" : "CASH",
           customerId: input.paymentMethod === "CREDIT" ? input.customerId : null,
+          vehicleNo: input.vehicleNo ? input.vehicleNo.trim().toUpperCase() : null,
           soldById: user.id,
         },
       });
@@ -204,37 +209,47 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           action: "SALE_RECORDED",
           entityType: "Sale",
           entityId: sale.id,
-          metadata: {
+          metadata: JSON.stringify({
             receiptNo,
             fuel: tank.fuel,
             liters: liters.toString(),
             ratePerL: tank.ratePerL.toString(),
             totalAmount: totalAmount.toString(),
             paymentMethod: input.paymentMethod,
+            vehicleNo: input.vehicleNo ?? null,
             onlineProvider: input.onlineProvider ?? null,
             paymentRef: input.paymentRef ?? null,
             customerId: input.customerId ?? null,
             tankLevelAfter: tank.levelL.sub(liters).toString(),
-          },
+          }),
         },
       });
 
       const tendered = input.paymentMethod === "CASH" ? decimalOrNull(input.cashTendered) : null;
+      const taxable = totalAmount.div(1.13);
+      const vat = totalAmount.sub(taxable);
 
       return {
         receiptNo,
+        billNumber: `INV-${String(receiptNo).padStart(5, "0")}`,
         stationName: station.name,
         fuelLabel: FUEL_LABELS[tank.fuel],
         liters: fmtL(liters),
         rate: fmtRate(tank.ratePerL),
         total: fmtRs(totalAmount),
+        subtotal: fmtRs(taxable),
+        taxableAmount: fmtRs(taxable),
+        vatAmount: fmtRs(vat),
+        discount: input.discountAmount ? fmtRs(new D(input.discountAmount)) : undefined,
         paymentMethod: input.paymentMethod,
         onlineProvider: input.onlineProvider ?? null,
         paymentRef: input.paymentRef ?? null,
         customerName,
+        vehicleNo: input.vehicleNo ? input.vehicleNo.trim().toUpperCase() : null,
         changeDue: tendered && tendered.gte(totalAmount) ? fmtRs(tendered.sub(totalAmount)) : null,
         soldBy: user.name,
         at: fmtBSDateTime(sale.createdAt),
+        dateBS: fmtBSDateTime(sale.createdAt).split(" ")[0] || "",
       } satisfies ReceiptDTO;
     });
 
@@ -256,8 +271,8 @@ export interface VoidState {
 }
 
 export async function voidSaleAction(_prev: VoidState, formData: FormData): Promise<VoidState> {
-  const user = await requireUser();
-  if (!can(user.role, "voidSale")) {
+  const { prisma: tenantDb, stationId, user } = await requireTenantDb();
+  if (!can(user.role as Role, "voidSale")) {
     return { error: "Only an owner or manager can void a sale." };
   }
 
@@ -267,8 +282,8 @@ export async function voidSaleAction(_prev: VoidState, formData: FormData): Prom
   if (reason.length < 3) return { error: "Give a reason for the void — it goes on the audit trail." };
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.findFirst({ where: { id: saleId, stationId: user.stationId } });
+    await tenantDb.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({ where: { id: saleId, stationId } });
       if (!sale) throw new SaleError("That sale doesn't exist.");
       if (sale.voided) throw new SaleError("That sale was already voided.");
 
@@ -303,12 +318,12 @@ export async function voidSaleAction(_prev: VoidState, formData: FormData): Prom
           action: "SALE_VOIDED",
           entityType: "Sale",
           entityId: sale.id,
-          metadata: {
+          metadata: JSON.stringify({
             receiptNo: sale.receiptNo,
             reason,
             litersReturned: sale.liters.toString(),
             amountReversed: sale.totalAmount.toString(),
-          },
+          }),
         },
       });
     });
@@ -339,8 +354,8 @@ const EditSaleSchema = z.object({
 });
 
 export async function editSaleAction(_prev: EditSaleState, formData: FormData): Promise<EditSaleState> {
-  const user = await requireUser();
-  if (!can(user.role, "voidSale")) {
+  const { prisma: tenantDb, stationId, user } = await requireTenantDb();
+  if (!can(user.role as Role, "voidSale")) {
     return { error: "Only an owner or manager can edit a recorded bill." };
   }
 
@@ -361,9 +376,9 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
   const { saleId, vehicleNo, customerId, paymentMethod, onlineProvider, paymentRef, reason } = parsed.data;
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await tenantDb.$transaction(async (tx) => {
       const sale = await tx.sale.findFirst({
-        where: { id: saleId, stationId: user.stationId },
+        where: { id: saleId, stationId },
         include: { customer: true },
       });
       if (!sale) throw new SaleError("Sale not found.");
@@ -413,7 +428,7 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
           action: "SALE_EDITED",
           entityType: "Sale",
           entityId: sale.id,
-          metadata: {
+          metadata: JSON.stringify({
             receiptNo: sale.receiptNo,
             reason,
             previous: {
@@ -428,7 +443,7 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
               onlineProvider,
               paymentRef,
             },
-          },
+          }),
         },
       });
     });

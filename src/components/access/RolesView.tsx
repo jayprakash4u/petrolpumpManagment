@@ -6,21 +6,26 @@ import {
   Crown,
   Briefcase,
   Wallet,
+  Calculator,
+  Gauge,
   Users,
   Check,
   ArrowRight,
+  UserPlus,
 } from "lucide-react";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 import { STATION_ROLES, getRoleActivePermissions } from "@/lib/access";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { GhostButton } from "@/components/ui/Button";
+import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 
 const ROLE_ICONS: Record<Role, React.ComponentType<{ size?: number; className?: string }>> = {
   OWNER: Crown,
   MANAGER: Briefcase,
   CASHIER: Wallet,
-  ATTENDANT: Users,
+  ACCOUNTANT: Calculator,
+  ATTENDANT: Gauge,
+  OTHER: Users,
 };
 
 export function RolesView() {
@@ -33,22 +38,29 @@ export function RolesView() {
             <ShieldCheck size={20} />
           </div>
           <div>
-            <h3 className="font-display text-[16px] font-bold text-text">Station Access Roles</h3>
+            <h3 className="font-display text-[16px] font-bold text-text">Station Roles & Starting Templates</h3>
             <p className="text-[12.5px] text-text-muted">
-              4 distinct access levels designed for petrol pump operations. Each role grants specific capabilities.
+              Role defines the general job title and default permission preset. Station Admin can customize granular access on a per-staff basis.
             </p>
           </div>
         </div>
 
-        <Link href="/access/permissions">
-          <GhostButton className="text-[12.5px]">
-            Open Permissions Matrix <ArrowRight size={13} />
-          </GhostButton>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/employees/new">
+            <PrimaryButton className="text-[12.5px] py-1.5 px-3">
+              <UserPlus size={13} /> Create Staff
+            </PrimaryButton>
+          </Link>
+          <Link href="/access/permissions">
+            <GhostButton className="text-[12.5px]">
+              Open Permissions Matrix <ArrowRight size={13} />
+            </GhostButton>
+          </Link>
+        </div>
       </div>
 
       {/* Role Cards Grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {STATION_ROLES.map((roleInfo) => {
           const Icon = ROLE_ICONS[roleInfo.role];
           const activePerms = getRoleActivePermissions(roleInfo.role);
@@ -63,25 +75,27 @@ export function RolesView() {
                       <Icon size={20} />
                     </div>
                     <div>
-                      <h4 className="font-display text-[16px] font-bold text-text">{roleInfo.name}</h4>
-                      <span className="font-data text-[11px] text-text-muted uppercase">ROLE: {roleInfo.role}</span>
+                      <h4 className="font-display text-[15px] font-bold text-text">{roleInfo.name}</h4>
+                      <span className="font-data text-[10.5px] text-text-muted uppercase">ROLE: {roleInfo.role}</span>
                     </div>
                   </div>
 
-                  <Badge tone={roleInfo.badgeTone}>{activePerms.length} / 10 Permissions</Badge>
+                  <Badge tone={roleInfo.badgeTone}>
+                    {roleInfo.role === "OWNER" ? "100% Full Access" : `${activePerms.length} Default Perms`}
+                  </Badge>
                 </div>
 
-                <p className="text-[13px] text-text-muted leading-relaxed">{roleInfo.summary}</p>
+                <p className="text-[12.5px] text-text-muted leading-relaxed">{roleInfo.summary}</p>
 
                 {/* Key Responsibilities */}
-                <div className="rounded-xl border border-border bg-bg p-3.5 space-y-2">
-                  <span className="text-[11.5px] font-semibold text-text uppercase tracking-wider block">
+                <div className="rounded-xl border border-border bg-bg p-3 space-y-1.5">
+                  <span className="text-[11px] font-semibold text-text uppercase tracking-wider block">
                     Core Responsibilities:
                   </span>
-                  <ul className="space-y-1.5 text-[12.5px] text-text-muted">
+                  <ul className="space-y-1 text-[12px] text-text-muted">
                     {roleInfo.responsibilities.map((resp, i) => (
                       <li key={i} className="flex items-start gap-2">
-                        <Check size={14} className="text-success shrink-0 mt-0.5" />
+                        <Check size={13} className="text-success shrink-0 mt-0.5" />
                         <span>{resp}</span>
                       </li>
                     ))}
@@ -90,29 +104,40 @@ export function RolesView() {
 
                 {/* Active Capabilities Badges */}
                 <div>
-                  <span className="text-[11.5px] font-medium text-text-muted block mb-1.5">
-                    Granted Capabilities:
+                  <span className="text-[11px] font-medium text-text-muted block mb-1">
+                    Default Capabilities:
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {activePerms.map((perm) => (
-                      <span
-                        key={perm.key}
-                        className="rounded-md bg-surface-hi px-2 py-0.5 font-data text-[11px] text-text font-medium"
-                      >
-                        {perm.name}
+                  <div className="flex flex-wrap gap-1">
+                    {roleInfo.role === "OWNER" ? (
+                      <span className="rounded-md bg-accent/15 px-2 py-0.5 font-data text-[10.5px] text-accent font-semibold">
+                        All Station Operations, Financials & User Admin
                       </span>
-                    ))}
+                    ) : (
+                      activePerms.slice(0, 5).map((perm) => (
+                        <span
+                          key={perm.key}
+                          className="rounded-md bg-surface-hi px-1.5 py-0.5 font-data text-[10.5px] text-text font-medium"
+                        >
+                          {perm.name}
+                        </span>
+                      ))
+                    )}
+                    {roleInfo.role !== "OWNER" && activePerms.length > 5 && (
+                      <span className="rounded-md bg-surface-hi px-1.5 py-0.5 font-data text-[10.5px] text-text-muted">
+                        +{activePerms.length - 5} more
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Card Footer */}
-              <div className="flex items-center justify-between border-t border-border/80 pt-3 text-[12px]">
+              <div className="flex items-center justify-between border-t border-border/80 pt-3 text-[11.5px]">
                 <Link href="/employees" className="font-medium text-accent hover:underline flex items-center gap-1">
-                  Manage Employees in Roster <ArrowRight size={12} />
+                  View Roster <ArrowRight size={11} />
                 </Link>
-                <Link href="/access/permissions" className="text-text-muted hover:text-text">
-                  Edit in Matrix →
+                <Link href="/employees/new" className="text-text-muted hover:text-text">
+                  Create with Role →
                 </Link>
               </div>
             </Card>

@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { TopBar } from "./TopBar";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 
 export function DashboardShell({
   title,
@@ -14,7 +14,7 @@ export function DashboardShell({
 }: {
   title: string;
   userName: string;
-  userRole: Role;
+  userRole: Role | string;
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);

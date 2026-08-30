@@ -11,12 +11,12 @@ const initialState: AdminLoginState = {};
 /** Operator sign-in for the Super Admin platform console. */
 export function AdminLoginForm() {
   const [state, action, pending] = useActionState(adminLoginAction, initialState);
-  const [username, setUsername] = useState("operator");
-  const [password, setPassword] = useState("password123");
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("SuperAdmin2026!");
 
   const fillDemo = () => {
-    setUsername("operator");
-    setPassword("password123");
+    setUsername("admin");
+    setPassword("SuperAdmin2026!");
   };
 
   return (
@@ -41,7 +41,7 @@ export function AdminLoginForm() {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               autoFocus
-              placeholder="operator"
+              placeholder="admin"
               required
             />
           </div>
@@ -81,8 +81,8 @@ export function AdminLoginForm() {
         {/* 1-Click Demo Credentials Quick Fill */}
         <div className="mt-2 flex items-center justify-between rounded-xl border border-border/80 bg-surface-hi p-3">
           <div className="flex flex-col text-left">
-            <span className="text-[11.5px] font-semibold text-text">Demo Credentials:</span>
-            <span className="font-data text-[11px] text-text-muted">User: <strong className="text-text">operator</strong> · Pass: <strong className="text-text">password123</strong></span>
+            <span className="text-[11.5px] font-semibold text-text">Super Admin Credentials:</span>
+            <span className="font-data text-[11px] text-text-muted">User: <strong className="text-text">admin</strong> · Pass: <strong className="text-text">SuperAdmin2026!</strong></span>
           </div>
           <GhostButton
             type="button"

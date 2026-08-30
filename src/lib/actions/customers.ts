@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
-import { can } from "@/lib/permissions";
+import { can, type Role } from "@/lib/permissions";
 import { checkPayment, checkCreditLimit, balanceAfter } from "@/lib/credit";
 import { fmtRs } from "@/lib/money";
 
@@ -40,12 +40,9 @@ const CreateCustomerSchema = z.object({
   creditLimit: z.string().trim().min(1, "Enter a credit limit"),
 });
 
-export async function createCustomerAction(
-  _prev: CustomerFormState,
-  formData: FormData
-): Promise<CustomerFormState> {
+export async function createCustomerAction(_prev: CustomerFormState, formData: FormData): Promise<CustomerFormState> {
   const actor = await requireUser();
-  if (!can(actor.role, "manageCustomers")) {
+  if (!can(actor.role as Role, "manageCustomers")) {
     return { error: "Your role can't add credit customers." };
   }
 
@@ -91,7 +88,7 @@ export async function createCustomerAction(
           action: "CUSTOMER_CREATED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: { name: customer.name, creditLimit: creditLimit.toString(), phone: customer.phone },
+          metadata: JSON.stringify({ name: customer.name, creditLimit: creditLimit.toString(), phone: customer.phone }),
         },
       });
 
@@ -132,7 +129,7 @@ export async function recordPaymentAction(
   formData: FormData
 ): Promise<CustomerFormState> {
   const actor = await requireUser();
-  if (!can(actor.role, "recordCustomerPayment")) {
+  if (!can(actor.role as Role, "recordCustomerPayment")) {
     return { error: "Your role can't record customer payments." };
   }
 
@@ -195,13 +192,13 @@ export async function recordPaymentAction(
           action: "CUSTOMER_PAYMENT_RECORDED",
           entityType: "CustomerPayment",
           entityId: payment.id,
-          metadata: {
+          metadata: JSON.stringify({
             customerId: customer.id,
             customerName: customer.name,
             amount: amount.toString(),
             dueBefore: customer.dueAmount.toString(),
             dueAfter: newDue.toString(),
-          },
+          }),
         },
       });
 
@@ -239,7 +236,7 @@ export async function updateCreditLimitAction(
   const actor = await requireUser();
   // Raising a credit line is a commercial decision, not a till operation —
   // deliberately narrower than manageCustomers.
-  if (!can(actor.role, "viewReports")) {
+  if (!can(actor.role as Role, "viewReports")) {
     return { error: "Only an owner or manager can change a credit limit." };
   }
 
@@ -274,12 +271,12 @@ export async function updateCreditLimitAction(
           action: "CREDIT_LIMIT_CHANGED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: {
+          metadata: JSON.stringify({
             name: customer.name,
             oldLimit: customer.creditLimit.toString(),
             newLimit: newLimit.toString(),
             dueAtChange: customer.dueAmount.toString(),
-          },
+          }),
         },
       });
 
@@ -311,7 +308,7 @@ export async function setCustomerActiveAction(
   formData: FormData
 ): Promise<CustomerFormState> {
   const actor = await requireUser();
-  if (!can(actor.role, "manageCustomers")) {
+  if (!can(actor.role as Role, "manageCustomers")) {
     return { error: "Your role can't close credit accounts." };
   }
 
@@ -344,7 +341,7 @@ export async function setCustomerActiveAction(
           action: active ? "CUSTOMER_REOPENED" : "CUSTOMER_CLOSED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: { name: customer.name },
+          metadata: JSON.stringify({ name: customer.name }),
         },
       });
 

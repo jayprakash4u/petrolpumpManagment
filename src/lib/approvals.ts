@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 
 export type ApprovalWorkflowType =
   | "EXPENSE_VOUCHER"
@@ -16,7 +16,7 @@ export type ApprovalPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export interface UserSummary {
   id: string;
   name: string;
-  role: Role;
+  role: Role | string;
   username: string;
 }
 
@@ -73,8 +73,8 @@ export interface ApprovalRule {
   workflowType: ApprovalWorkflowType;
   name: string;
   description: string;
-  presenterRoles: Role[];
-  approverRoles: Role[];
+  presenterRoles: (Role | string)[];
+  approverRoles: (Role | string)[];
   minAmountForApprovalNpr: number; // e.g., expenses above this amount require checker approval
   requireDualApproval: boolean; // Needs 2 owners or manager + owner for high-value
   dualApprovalThresholdNpr: number;
@@ -246,7 +246,7 @@ export function filterApprovalRequests(
  * Validates whether a user with a given role can approve a specific request based on rules.
  */
 export function canUserApprove(
-  userRole: Role,
+  userRole: Role | string,
   userId: string,
   request: ApprovalRequest,
   rule?: ApprovalRule

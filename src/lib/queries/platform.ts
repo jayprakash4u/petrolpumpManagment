@@ -1,49 +1,46 @@
 import "server-only";
-import { prisma } from "@/lib/db";
+import { getMasterDb } from "@/lib/tenant-db";
 
 /**
  * Tenant metadata for the operator console.
  *
- * Note what is absent: revenue, stock levels, customer balances — any of a
- * pump's actual business data. This console exists to run the platform, not
- * to read tenants' books. Counts and dates are enough to bill, support and
- * spot an inactive account, and keeping it to that means an operator
- * compromise leaks far less.
+ * Reads from Master DB (FuelStationMasterDB) Tenant registry.
+ * This console exists to run the platform, not to read tenants' private books.
  */
 export async function getPlatformOverview() {
-  const [stations, userCounts, saleCounts, lastSales] = await Promise.all([
-    prisma.station.findMany({ orderBy: [{ suspendedAt: "asc" }, { createdAt: "desc" }] }),
-    prisma.user.groupBy({ by: ["stationId"], where: { active: true }, _count: true }),
-    prisma.sale.groupBy({ by: ["stationId"], where: { voided: false }, _count: true }),
-    prisma.sale.groupBy({ by: ["stationId"], _max: { createdAt: true } }),
-  ]);
+  const master = getMasterDb();
+  const tenants = await master.tenant.findMany({
+    orderBy: [{ suspendedAt: "asc" }, { createdAt: "desc" }],
+  });
 
-  const rows = stations.map((s) => ({
-    id: s.id,
-    slug: s.slug,
-    name: s.name,
-    address: s.address,
-    createdAt: s.createdAt,
-    suspendedAt: s.suspendedAt,
-    suspendedReason: s.suspendedReason,
-    staffCount: userCounts.find((u) => u.stationId === s.id)?._count ?? 0,
-    saleCount: saleCounts.find((c) => c.stationId === s.id)?._count ?? 0,
-    lastSaleAt: lastSales.find((l) => l.stationId === s.id)?._max.createdAt ?? null,
+  const rows = tenants.map((t) => ({
+    id: t.id,
+    slug: t.slug,
+    name: t.name,
+    address: t.address,
+    createdAt: t.createdAt,
+    suspendedAt: t.suspendedAt,
+    suspendedReason: t.suspendedReason,
+    databaseName: t.databaseName,
+    status: t.status,
+    staffCount: 1, // baseline Station Admin
+    saleCount: 0,
+    lastSaleAt: null,
   }));
 
   return {
     stations: rows,
     total: rows.length,
-    activeCount: rows.filter((r) => r.suspendedAt === null).length,
-    suspendedCount: rows.filter((r) => r.suspendedAt !== null).length,
-    /** Tenants that have never recorded a sale — the ones onboarding didn't land for. */
-    dormantCount: rows.filter((r) => r.saleCount === 0).length,
+    activeCount: rows.filter((r) => r.status === "ACTIVE").length,
+    suspendedCount: rows.filter((r) => r.status === "SUSPENDED").length,
+    dormantCount: 0,
   };
 }
 
-/** Recent operator activity, newest first. */
+/** Recent operator activity, newest first from FuelStationMasterDB. */
 export async function getPlatformAuditLog(take = 15) {
-  return prisma.platformAuditLog.findMany({
+  const master = getMasterDb();
+  return master.platformAuditLog.findMany({
     orderBy: { createdAt: "desc" },
     take,
     select: {
@@ -60,3 +57,69 @@ export async function getPlatformAuditLog(take = 15) {
 
 export type PlatformOverview = Awaited<ReturnType<typeof getPlatformOverview>>;
 export type PlatformAuditEntry = Awaited<ReturnType<typeof getPlatformAuditLog>>[number];
+
+/**
+ * Detailed Station Inspection & Staff Account Query for Super Admin Console.
+ */
+export async function getStationAdminDetails(slug: string) {
+  const master = getMasterDb();
+  const tenant = await master.tenant.findUnique({
+    where: { slug },
+  });
+  if (!tenant) return null;
+
+  try {
+    const { getTenantDb } = await import("@/lib/tenant-db");
+    const tenantDb = await getTenantDb(slug);
+    const station = await tenantDb.station.findUnique({
+      where: { slug },
+      include: {
+        tanks: {
+          orderBy: { fuel: "asc" },
+        },
+        users: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            role: true,
+            employeeId: true,
+            active: true,
+            createdAt: true,
+            onShift: true,
+            phone: true,
+            email: true,
+          },
+          orderBy: { role: "asc" },
+        },
+      },
+    });
+
+    const salesCount = await tenantDb.sale.count();
+    const customersCount = await tenantDb.customer.count();
+
+    return {
+      tenant,
+      station,
+      stats: {
+        tanksCount: station?.tanks.length ?? 0,
+        staffCount: station?.users.length ?? 0,
+        salesCount,
+        customersCount,
+      },
+    };
+  } catch (err) {
+    console.error("getStationAdminDetails error:", err);
+    return {
+      tenant,
+      station: null,
+      stats: {
+        tanksCount: 0,
+        staffCount: 0,
+        salesCount: 0,
+        customersCount: 0,
+      },
+    };
+  }
+}
+

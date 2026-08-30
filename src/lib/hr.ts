@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
 
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "ON_LEAVE" | "HALF_DAY";
 export type ShiftType = "MORNING" | "DAY" | "NIGHT" | "FULL_DAY";
@@ -12,7 +12,7 @@ export interface AttendanceRecord {
   dateBS: string; // e.g. "2083-05-08"
   employeeId: string;
   employeeName: string;
-  role: Role;
+  role: Role | string;
   shiftType: ShiftType;
   checkIn: string; // e.g. "06:00 AM"
   checkOut: string; // e.g. "02:00 PM"
@@ -26,7 +26,7 @@ export interface LeaveRequest {
   id: string;
   employeeId: string;
   employeeName: string;
-  role: Role;
+  role: Role | string;
   leaveType: LeaveType;
   startDateBS: string;
   endDateBS: string;
@@ -41,7 +41,7 @@ export interface SalaryStructure {
   id: string;
   employeeId: string;
   employeeName: string;
-  role: Role;
+  role: Role | string;
   baseSalaryNpr: number;
   dailyAllowanceNpr: number;
   overtimeRatePerHourNpr: number;
@@ -56,7 +56,7 @@ export interface MonthlyPayrollItem {
   payrollMonthBS: string; // e.g. "Bhadra 2083"
   employeeId: string;
   employeeName: string;
-  role: Role;
+  role: Role | string;
   
   // Earnings
   basePayNpr: number;

@@ -1,4 +1,4 @@
-import type { FuelType, PaymentMethod } from "@prisma/client";
+import type { FuelType, PaymentMethod } from "@/lib/permissions";
 import { normalizeVehicleNo } from "@/lib/vehicle";
 import { resolveRange, type DateRange } from "@/lib/reports";
 

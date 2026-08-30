@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { Prisma, PaymentMethod } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { PaymentMethod } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { deriveSale, checkLiters, type SaleMode } from "@/lib/sale-math";
 import { creditHeadroom } from "@/lib/credit";
@@ -190,7 +191,7 @@ export class SaleService {
           action: "SALE_RECORDED",
           entityType: "Sale",
           entityId: sale.id,
-          metadata: {
+          metadata: JSON.stringify({
             receiptNo,
             fuel: tank.fuel,
             liters: liters.toString(),
@@ -202,7 +203,7 @@ export class SaleService {
             customerId: input.customerId ?? null,
             vehicleNo: input.vehicleNo ?? null,
             tankLevelAfter: tank.levelL.sub(liters).toString(),
-          },
+          }),
         },
       });
 
@@ -269,12 +270,12 @@ export class SaleService {
           action: "SALE_VOIDED",
           entityType: "Sale",
           entityId: sale.id,
-          metadata: {
+          metadata: JSON.stringify({
             receiptNo: sale.receiptNo,
             reason: input.reason,
             litersReturned: sale.liters.toString(),
             amountReversed: sale.totalAmount.toString(),
-          },
+          }),
         },
       });
 

@@ -88,14 +88,14 @@ export class ImpersonationService {
         action: "SUPER_ADMIN_IMPERSONATION_STARTED",
         entityType: "Station",
         entityId: station.id,
-        metadata: {
+        metadata: JSON.stringify({
           stationName: station.name,
           stationSlug: station.slug,
           targetUser: targetUser.name,
           supportReason: params.supportReason.trim(),
           sessionId: dbSession.id,
           expiresAt: expiresAtDate.toISOString(),
-        },
+        }),
       },
     });
 
@@ -106,12 +106,12 @@ export class ImpersonationService {
         action: "SUPER_ADMIN_IMPERSONATION_STARTED",
         entityType: "PlatformAdmin",
         entityId: admin.id,
-        metadata: {
+        metadata: JSON.stringify({
           impersonator: admin.name,
           impersonatorUsername: admin.username,
           supportReason: params.supportReason.trim(),
           maxDuration: "1 Hour",
-        },
+        }),
       },
     });
 

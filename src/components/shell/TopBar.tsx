@@ -4,7 +4,8 @@ import { useSyncExternalStore } from "react";
 import { Clock, Menu, LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { logoutAction } from "@/lib/actions/auth";
-import type { Role } from "@prisma/client";
+import type { Role } from "@/lib/permissions";
+import { ROLE_LABEL } from "@/lib/permissions";
 
 import { NetworkStatusIndicator } from "./NetworkStatusIndicator";
 
@@ -25,7 +26,7 @@ export function TopBar({
 }: {
   title: string;
   userName: string;
-  userRole?: Role;
+  userRole: Role | string;
   onMenu: () => void;
 }) {
   const time = useSyncExternalStore(subscribeToClock, nowTime, () => null);
