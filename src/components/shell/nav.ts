@@ -154,7 +154,7 @@ export const NAV: NavSection[] = [
             label: "Quick Sale",
             icon: Zap,
             enabled: true,
-            soonNote: "Cash-only fast entry for peak dispenser queues",
+            soonNote: "Fast single-column entry for a queue at the pump",
           },
           {
             href: "/sales/bills",

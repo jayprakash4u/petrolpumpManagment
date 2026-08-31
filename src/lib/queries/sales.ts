@@ -70,7 +70,7 @@ export async function getSalesPageData(_stationId?: string) {
     tenantDb.customer.findMany({
       where: { stationId, active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, creditLimit: true, dueAmount: true },
+      select: { id: true, name: true, phone: true, panNo: true, email: true, address: true, creditLimit: true, dueAmount: true },
     }),
     tenantDb.sale.findMany({
       where: { stationId },
@@ -101,6 +101,10 @@ export async function getSalesPageData(_stationId?: string) {
     customers: customers.map((c) => ({
       id: c.id,
       name: c.name,
+      phone: c.phone,
+      panNo: c.panNo,
+      email: c.email,
+      address: c.address,
       headroom: creditHeadroom(c.creditLimit, c.dueAmount).toString(),
       dueAmount: c.dueAmount.toString(),
     })),

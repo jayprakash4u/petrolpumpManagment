@@ -18,7 +18,7 @@ export function QuickActions() {
       id: "quick-sale",
       title: "Quick Sale",
       nepaliTitle: "द्रुत बिक्री",
-      subtitle: "Cash-only fast entry, no lookup",
+      subtitle: "Fast single-column entry, no lookup",
       href: "/sales/quick",
       icon: Zap,
       borderHover: "hover:border-cyan-500/50 hover:bg-cyan-500/5",

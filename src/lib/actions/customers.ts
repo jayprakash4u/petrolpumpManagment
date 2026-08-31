@@ -3,8 +3,7 @@
 import * as z from "zod";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/dal";
+import { requireTenantDb } from "@/lib/tenant-db";
 import { can, type Role } from "@/lib/permissions";
 import { checkPayment, checkCreditLimit, balanceAfter } from "@/lib/credit";
 import { fmtRs } from "@/lib/money";
@@ -37,11 +36,14 @@ export interface CustomerFormState {
 const CreateCustomerSchema = z.object({
   name: z.string().trim().min(2, "Enter the customer's name").max(120),
   phone: z.string().trim().max(30).optional(),
+  panNo: z.string().trim().max(30).optional(),
+  email: z.string().trim().max(150).optional(),
+  address: z.string().trim().max(200).optional(),
   creditLimit: z.string().trim().min(1, "Enter a credit limit"),
 });
 
 export async function createCustomerAction(_prev: CustomerFormState, formData: FormData): Promise<CustomerFormState> {
-  const actor = await requireUser();
+  const { prisma: tenantDb, stationId, user: actor } = await requireTenantDb();
   if (!can(actor.role as Role, "manageCustomers")) {
     return { error: "Your role can't add credit customers." };
   }
@@ -49,6 +51,9 @@ export async function createCustomerAction(_prev: CustomerFormState, formData: F
   const parsed = CreateCustomerSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone") ?? undefined,
+    panNo: formData.get("panNo") ?? undefined,
+    email: formData.get("email") ?? undefined,
+    address: formData.get("address") ?? undefined,
     creditLimit: formData.get("creditLimit"),
   });
   if (!parsed.success) {
@@ -61,20 +66,23 @@ export async function createCustomerAction(_prev: CustomerFormState, formData: F
   }
 
   try {
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await tenantDb.$transaction(async (tx) => {
       // Names aren't unique in the schema (two "Ram Transport"s can legitimately
       // exist), but a same-name account at the same station is far more likely
       // to be a duplicate than a coincidence, so it's worth refusing.
       const existing = await tx.customer.findFirst({
-        where: { stationId: actor.stationId, name: parsed.data.name, active: true },
+        where: { stationId, name: parsed.data.name, active: true },
       });
       if (existing) throw new CustomerError(`${parsed.data.name} already has an account at this station.`);
 
       const customer = await tx.customer.create({
         data: {
-          stationId: actor.stationId,
+          stationId,
           name: parsed.data.name,
           phone: parsed.data.phone || null,
+          panNo: parsed.data.panNo || null,
+          email: parsed.data.email || null,
+          address: parsed.data.address || null,
           creditLimit,
           dueAmount: new D(0),
           active: true,
@@ -83,12 +91,12 @@ export async function createCustomerAction(_prev: CustomerFormState, formData: F
 
       await tx.auditLog.create({
         data: {
-          stationId: actor.stationId,
+          stationId,
           actorId: actor.id,
           action: "CUSTOMER_CREATED",
           entityType: "Customer",
           entityId: customer.id,
-          metadata: JSON.stringify({ name: customer.name, creditLimit: creditLimit.toString(), phone: customer.phone }),
+          metadata: JSON.stringify({ name: customer.name, creditLimit: creditLimit.toString(), phone: customer.phone, panNo: customer.panNo }),
         },
       });
 
@@ -102,6 +110,84 @@ export async function createCustomerAction(_prev: CustomerFormState, formData: F
     if (err instanceof CustomerError) return { error: err.message };
     console.error("createCustomerAction failed", err);
     return { error: "Could not add the customer. Please try again." };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Update contact / identity details — deliberately separate from credit
+ * limit (Credit page's own editor) and from name-based credit resolution
+ * in recordSaleAction — this never touches money, just who the account is.
+ * ------------------------------------------------------------------ */
+
+const UpdateCustomerDetailsSchema = z.object({
+  customerId: z.string().min(1),
+  name: z.string().trim().min(2, "Enter the customer's name").max(120),
+  phone: z.string().trim().max(30).optional(),
+  panNo: z.string().trim().max(30).optional(),
+  email: z.string().trim().max(150).optional(),
+  address: z.string().trim().max(200).optional(),
+});
+
+export async function updateCustomerDetailsAction(
+  _prev: CustomerFormState,
+  formData: FormData
+): Promise<CustomerFormState> {
+  const { prisma: tenantDb, stationId, user: actor } = await requireTenantDb();
+  if (!can(actor.role as Role, "manageCustomers")) {
+    return { error: "Your role can't edit customer details." };
+  }
+
+  const parsed = UpdateCustomerDetailsSchema.safeParse({
+    customerId: formData.get("customerId"),
+    name: formData.get("name"),
+    phone: formData.get("phone") ?? undefined,
+    panNo: formData.get("panNo") ?? undefined,
+    email: formData.get("email") ?? undefined,
+    address: formData.get("address") ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    const updated = await tenantDb.$transaction(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id: parsed.data.customerId, stationId },
+      });
+      if (!customer) throw new CustomerError("That customer isn't at this station.");
+
+      const result = await tx.customer.update({
+        where: { id: customer.id },
+        data: {
+          name: parsed.data.name,
+          phone: parsed.data.phone || null,
+          panNo: parsed.data.panNo || null,
+          email: parsed.data.email || null,
+          address: parsed.data.address || null,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          stationId,
+          actorId: actor.id,
+          action: "CUSTOMER_DETAILS_UPDATED",
+          entityType: "Customer",
+          entityId: customer.id,
+          metadata: JSON.stringify({ name: result.name, panNo: result.panNo }),
+        },
+      });
+
+      return result;
+    });
+
+    revalidatePath("/credit");
+    revalidatePath("/sales");
+    return { message: `${updated.name}'s details updated.` };
+  } catch (err) {
+    if (err instanceof CustomerError) return { error: err.message };
+    console.error("updateCustomerDetailsAction failed", err);
+    return { error: "Could not update the customer. Please try again." };
   }
 }
 
@@ -128,7 +214,7 @@ export async function recordPaymentAction(
   _prev: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  const actor = await requireUser();
+  const { prisma: tenantDb, stationId, user: actor } = await requireTenantDb();
   if (!can(actor.role as Role, "recordCustomerPayment")) {
     return { error: "Your role can't record customer payments." };
   }
@@ -146,9 +232,9 @@ export async function recordPaymentAction(
   if (!amount || amount.lte(0)) return { error: "Enter an amount greater than zero." };
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await tenantDb.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({
-        where: { id: parsed.data.customerId, stationId: actor.stationId },
+        where: { id: parsed.data.customerId, stationId },
       });
       if (!customer) throw new CustomerError("That customer isn't at this station.");
 
@@ -187,7 +273,7 @@ export async function recordPaymentAction(
 
       await tx.auditLog.create({
         data: {
-          stationId: actor.stationId,
+          stationId,
           actorId: actor.id,
           action: "CUSTOMER_PAYMENT_RECORDED",
           entityType: "CustomerPayment",
@@ -233,7 +319,7 @@ export async function updateCreditLimitAction(
   _prev: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  const actor = await requireUser();
+  const { prisma: tenantDb, stationId, user: actor } = await requireTenantDb();
   // Raising a credit line is a commercial decision, not a till operation —
   // deliberately narrower than manageCustomers.
   if (!can(actor.role as Role, "viewReports")) {
@@ -250,9 +336,9 @@ export async function updateCreditLimitAction(
   if (!newLimit) return { error: "Enter a valid credit limit." };
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await tenantDb.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({
-        where: { id: parsed.data.customerId, stationId: actor.stationId },
+        where: { id: parsed.data.customerId, stationId },
       });
       if (!customer) throw new CustomerError("That customer isn't at this station.");
 
@@ -266,7 +352,7 @@ export async function updateCreditLimitAction(
 
       await tx.auditLog.create({
         data: {
-          stationId: actor.stationId,
+          stationId,
           actorId: actor.id,
           action: "CREDIT_LIMIT_CHANGED",
           entityType: "Customer",
@@ -307,7 +393,7 @@ export async function setCustomerActiveAction(
   _prev: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  const actor = await requireUser();
+  const { prisma: tenantDb, stationId, user: actor } = await requireTenantDb();
   if (!can(actor.role as Role, "manageCustomers")) {
     return { error: "Your role can't close credit accounts." };
   }
@@ -317,8 +403,8 @@ export async function setCustomerActiveAction(
   if (!customerId) return { error: "Missing customer." };
 
   try {
-    const name = await prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.findFirst({ where: { id: customerId, stationId: actor.stationId } });
+    const name = await tenantDb.$transaction(async (tx) => {
+      const customer = await tx.customer.findFirst({ where: { id: customerId, stationId } });
       if (!customer) throw new CustomerError("That customer isn't at this station.");
       if (customer.active === active) {
         throw new CustomerError(`${customer.name}'s account is already ${active ? "open" : "closed"}.`);
@@ -336,7 +422,7 @@ export async function setCustomerActiveAction(
 
       await tx.auditLog.create({
         data: {
-          stationId: actor.stationId,
+          stationId,
           actorId: actor.id,
           action: active ? "CUSTOMER_REOPENED" : "CUSTOMER_CLOSED",
           entityType: "Customer",

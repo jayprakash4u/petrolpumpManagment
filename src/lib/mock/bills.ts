@@ -230,10 +230,3 @@ export const MOCK_VEHICLE_TOTALS = {
   /** Sales with no plate recorded. Surfaced rather than hidden — it is a data-quality signal. */
   unattributed: 2,
 };
-
-/** Fuel options for the sample forms, matching the seeded station's rates. */
-export const MOCK_FUEL_OPTIONS = [
-  { fuel: "PETROL" as FuelType, label: "Petrol", rate: "106.48", stock: "8,214" },
-  { fuel: "DIESEL" as FuelType, label: "Diesel", rate: "92.34", stock: "9,460" },
-  { fuel: "CNG" as FuelType, label: "CNG", rate: "78.10", stock: "1,175" },
-];

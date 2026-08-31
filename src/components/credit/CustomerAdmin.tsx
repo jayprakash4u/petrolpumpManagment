@@ -54,8 +54,20 @@ function AddCustomerFields({
         <Input id="customerName" name="name" placeholder="Kathmandu Cabs Pvt. Ltd." />
       </Field>
 
+      <Field label="PAN / VAT No. (optional)" htmlFor="panNo">
+        <Input id="panNo" name="panNo" placeholder="600123456" />
+      </Field>
+
       <Field label="Phone (optional)" htmlFor="phone">
         <Input id="phone" name="phone" inputMode="tel" placeholder="98410 22310" />
+      </Field>
+
+      <Field label="Email (optional)" htmlFor="email">
+        <Input id="email" name="email" type="email" placeholder="accounts@kathmanducabs.com" />
+      </Field>
+
+      <Field label="Address (optional)" htmlFor="address">
+        <Input id="address" name="address" placeholder="New Baneshwor, Kathmandu" />
       </Field>
 
       <Field label="Credit limit" htmlFor="creditLimit">

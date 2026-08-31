@@ -248,4 +248,44 @@ BEGIN
 END;
 `,
   },
+  {
+    id: "003_discount_amount",
+    description: "Sale.discountAmount — the discount already subtracted out of totalAmount, kept so it can still be itemized on the invoice.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Sale' AND COLUMN_NAME = 'discountAmount')
+BEGIN
+    ALTER TABLE [dbo].[Sale] ADD [discountAmount] DECIMAL(12, 2) NULL;
+END;
+`,
+  },
+  {
+    id: "004_remarks",
+    description: "Sale.remarks — free-text note captured at point of sale.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Sale' AND COLUMN_NAME = 'remarks')
+BEGIN
+    ALTER TABLE [dbo].[Sale] ADD [remarks] NVARCHAR(1000) NULL;
+END;
+`,
+  },
+  {
+    id: "005_customer_pan_address",
+    description: "Customer.panNo / email / address — captured on the Add Customer form, shown on the tax invoice's Bill To block for B2B buyers.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Customer' AND COLUMN_NAME = 'panNo')
+BEGIN
+    ALTER TABLE [dbo].[Customer] ADD [panNo] NVARCHAR(1000) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Customer' AND COLUMN_NAME = 'email')
+BEGIN
+    ALTER TABLE [dbo].[Customer] ADD [email] NVARCHAR(1000) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Customer' AND COLUMN_NAME = 'address')
+BEGIN
+    ALTER TABLE [dbo].[Customer] ADD [address] NVARCHAR(1000) NULL;
+END;
+`,
+  },
 ];

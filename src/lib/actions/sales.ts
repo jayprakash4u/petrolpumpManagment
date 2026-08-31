@@ -24,7 +24,10 @@ export interface ReceiptDTO {
   fuelLabel: string;
   liters: string;
   rate: string;
+  /** Gross line amount (litres × rate), before any discount — shown on the item row. */
   total: string;
+  /** What's actually owed after discount — Grand Total. Falls back to `total` when there's no discount. */
+  grandTotal?: string;
   subtotal?: string;
   taxableAmount?: string;
   vatAmount?: string;
@@ -33,6 +36,10 @@ export interface ReceiptDTO {
   onlineProvider?: string | null;
   paymentRef?: string | null;
   customerName: string | null;
+  /** Set whenever the buyer name matches a customer record with a PAN/VAT No. on file. */
+  customerPanNo?: string | null;
+  /** Set whenever the buyer name matches a customer record with a phone number on file. */
+  customerPhone?: string | null;
   vehicleNo?: string | null;
   changeDue: string | null;
   soldBy: string;
@@ -57,6 +64,7 @@ const SaleSchema = z.object({
   buyerName: z.string().optional(),
   vehicleNo: z.string().optional(),
   discountAmount: z.string().optional(),
+  remarks: z.string().optional(),
   cashTendered: z.string().optional(),
   expectedRate: z.string().min(1),
 });
@@ -89,6 +97,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
     buyerName: formData.get("buyerName") ?? undefined,
     vehicleNo: formData.get("vehicleNo") ?? undefined,
     discountAmount: formData.get("discountAmount") ?? undefined,
+    remarks: formData.get("remarks") ?? undefined,
     cashTendered: formData.get("cashTendered") ?? undefined,
     expectedRate: formData.get("expectedRate"),
   });
@@ -120,11 +129,19 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         );
       }
 
-      const { liters, totalAmount } = deriveSale(input.mode as SaleMode, quantity, tank.ratePerL);
+      const { liters, totalAmount: grossAmount } = deriveSale(input.mode as SaleMode, quantity, tank.ratePerL);
       const problem = checkLiters(liters);
       if (problem === "TOO_SMALL") throw new SaleError("That works out to less than 0.01 L — check the amount.");
       if (problem === "TOO_LARGE") throw new SaleError("That volume looks wrong. Split it into separate sales if it's genuine.");
       if (problem === "NOT_A_NUMBER") throw new SaleError("Enter a valid quantity.");
+
+      // A discount comes off the gross line amount before anything else
+      // touches it — credit limit, the customer's ledger, and VAT all apply
+      // to what's actually charged, not the pre-discount price.
+      const discount = decimalOrNull(input.discountAmount) ?? new D(0);
+      if (discount.isNegative()) throw new SaleError("Discount can't be negative.");
+      if (discount.gt(grossAmount)) throw new SaleError("Discount can't be more than the sale amount.");
+      const totalAmount = grossAmount.sub(discount);
 
       // Deduct stock with a *conditional* update rather than read-then-write:
       // the `levelL >= liters` predicate and the decrement are one atomic
@@ -143,6 +160,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
       const buyerName = (input.buyerName ?? "").trim();
 
       let customerId: string | null = null;
+      let customerPanNo: string | null = null;
+      let customerPhone: string | null = null;
       if (input.paymentMethod === "CREDIT") {
         if (!buyerName) throw new SaleError("Enter the customer's name for a credit sale.");
 
@@ -186,6 +205,21 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           throw new SaleError(customer.name + "'s balance changed while you were entering this. Try again.");
         }
         customerId = customer.id;
+        customerPanNo = customer.panNo;
+        customerPhone = customer.phone;
+      } else if (buyerName) {
+        // Not a credit sale, but the typed name may still match an existing
+        // customer record — pull their PAN/phone for the invoice without
+        // opening or touching a ledger account for them.
+        const matched = await tx.customer.findFirst({
+          where: { stationId: user.stationId, active: true, name: buyerName },
+          select: { id: true, panNo: true, phone: true },
+        });
+        if (matched) {
+          customerId = matched.id;
+          customerPanNo = matched.panNo;
+          customerPhone = matched.phone;
+        }
       }
 
       // Mint a gap-free per-station receipt number. The atomic increment
@@ -206,6 +240,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           liters,
           ratePerL: tank.ratePerL,
           totalAmount,
+          discountAmount: discount.gt(0) ? discount : null,
+          remarks: input.remarks?.trim() || null,
           paymentMethod: input.paymentMethod === "CREDIT" ? "CREDIT" : "CASH",
           customerId,
           buyerName: buyerName || null,
@@ -226,6 +262,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
             fuel: tank.fuel,
             liters: liters.toString(),
             ratePerL: tank.ratePerL.toString(),
+            grossAmount: grossAmount.toString(),
+            discountAmount: discount.toString(),
             totalAmount: totalAmount.toString(),
             paymentMethod: input.paymentMethod,
             vehicleNo: input.vehicleNo ?? null,
@@ -249,15 +287,18 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         fuelLabel: FUEL_LABELS[tank.fuel],
         liters: fmtL(liters),
         rate: fmtRate(tank.ratePerL),
-        total: fmtRs(totalAmount),
+        total: fmtRs(grossAmount),
+        grandTotal: fmtRs(totalAmount),
         subtotal: fmtRs(taxable),
         taxableAmount: fmtRs(taxable),
         vatAmount: fmtRs(vat),
-        discount: input.discountAmount ? fmtRs(new D(input.discountAmount)) : undefined,
+        discount: discount.gt(0) ? fmtRs(discount) : undefined,
         paymentMethod: input.paymentMethod,
         onlineProvider: input.onlineProvider ?? null,
         paymentRef: input.paymentRef ?? null,
         customerName: buyerName || null,
+        customerPanNo,
+        customerPhone,
         vehicleNo: input.vehicleNo ? input.vehicleNo.trim().toUpperCase() : null,
         changeDue: tendered && tendered.gte(totalAmount) ? fmtRs(tendered.sub(totalAmount)) : null,
         soldBy: user.name,

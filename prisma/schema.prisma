@@ -183,6 +183,9 @@ model Customer {
   station     Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   name        String
   phone       String?
+  panNo       String?
+  email       String?
+  address     String?
   creditLimit Decimal  @default(0) @db.Decimal(12, 2)
   dueAmount   Decimal  @default(0) @db.Decimal(12, 2)
   active      Boolean  @default(true)
@@ -209,6 +212,8 @@ model Sale {
   customerId    String?
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   buyerName     String?   // free-text name typed at point of sale; kept even when it also resolves to a Customer
+  discountAmount Decimal? @db.Decimal(12, 2) // already subtracted out of totalAmount; kept separately so it can still be shown on the invoice
+  remarks       String?   @db.NVarChar(1000)
   soldById      String
   soldBy        User      @relation(fields: [soldById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt     DateTime  @default(now())
