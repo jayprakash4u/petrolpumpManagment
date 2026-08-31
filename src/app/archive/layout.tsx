@@ -10,7 +10,7 @@ export default async function ArchiveLayout({
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Log Archive" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Log Archive" userName={user.name} userRole={user.role} stationName={user.station.name}>
       <SystemSubnav />
       {children}
     </DashboardShell>

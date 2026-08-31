@@ -16,7 +16,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Shree Petroleum — Station Control",
+  title: "Fuel Nepal — Station Control",
   description: "Fuel station management system",
 };
 

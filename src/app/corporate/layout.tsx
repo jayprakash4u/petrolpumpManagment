@@ -6,7 +6,7 @@ export default async function CorporateLayout({ children }: { children: ReactNod
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Corporate Pay & Fleet Management" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Corporate Pay & Fleet Management" userName={user.name} userRole={user.role} stationName={user.station.name}>
       {children}
     </DashboardShell>
   );

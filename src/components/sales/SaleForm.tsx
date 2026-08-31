@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   Receipt as ReceiptIcon,
   Banknote,
@@ -50,6 +50,25 @@ export function SaleForm({
   canSell: boolean;
 }) {
   const [state, action, pending] = useActionState(recordSaleAction, initialState);
+  const printRequestedRef = useRef(false);
+
+  // Print once the new receipt has actually been committed to the DOM and
+  // painted — a blind setTimeout guess can fire before the receipt exists
+  // (slow render) or while its entrance animation still has a `transform`
+  // active, which breaks the print-only layout in globals.css. The double
+  // rAF waits for that paint without guessing at a duration.
+  useEffect(() => {
+    if (!state.receipt || !printRequestedRef.current) return;
+    printRequestedRef.current = false;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => window.print());
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [state.receipt]);
 
   if (!canSell) {
     return (
@@ -68,6 +87,9 @@ export function SaleForm({
         action={action}
         pending={pending}
         error={state.error}
+        onRequestPrint={() => {
+          printRequestedRef.current = true;
+        }}
       />
 
       {state.receipt && <ReceiptCard receipt={state.receipt} />}
@@ -81,47 +103,44 @@ function SaleFields({
   action,
   pending,
   error,
+  onRequestPrint,
 }: {
   tanks: TankOption[];
   customers: CustomerOption[];
   action: (formData: FormData) => void;
   pending: boolean;
   error?: string;
+  onRequestPrint: () => void;
 }) {
   const [tankId, setTankId] = useState(tanks[0]?.id ?? "");
   const [mode, setMode] = useState<"LITERS" | "AMOUNT">("LITERS");
-  const [quantity, setQuantity] = useState("500");
-  const [payment, setPayment] = useState<"CASH" | "ONLINE" | "CARD" | "CREDIT">("CREDIT");
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
-  const [vehicleNo, setVehicleNo] = useState("NA 4 KHA 9021");
+  const [quantity, setQuantity] = useState("");
+  const [payment, setPayment] = useState<"CASH" | "ONLINE" | "CARD" | "CREDIT">("CASH");
+  const [buyerName, setBuyerName] = useState("");
+  const [vehicleNo, setVehicleNo] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [onlineProvider, setOnlineProvider] = useState<"FONEPAY" | "ESEWA" | "KHALTI" | "MOBILE_BANKING">("FONEPAY");
   const [paymentRef, setPaymentRef] = useState("");
   const [tendered, setTendered] = useState("");
-  const [shouldPrint, setShouldPrint] = useState(false);
 
   const tank = tanks.find((t) => t.id === tankId) ?? tanks[0];
   const rate = Number(tank?.ratePerL ?? 0);
   const stock = Number(tank?.levelL ?? 0);
   const calc = useMemo(() => preview(mode, quantity, rate), [mode, quantity, rate]);
 
-  const customer = customers.find((c) => c.id === customerId);
+  // The typed name only maps to a ledger account if it matches an existing
+  // customer; a brand-new name gets created with a zero credit limit when
+  // the sale is submitted, so treat it as zero headroom here too.
+  const trimmedBuyer = buyerName.trim();
+  const customer = customers.find((c) => c.name.trim().toLowerCase() === trimmedBuyer.toLowerCase());
   const overStock = calc !== null && calc.liters > stock;
-  const overCredit = payment === "CREDIT" && !!customer && calc !== null && calc.total > Number(customer.headroom);
+  const overCredit = payment === "CREDIT" && calc !== null && calc.total > Number(customer?.headroom ?? 0);
   const change = payment === "CASH" && calc && Number(tendered) >= calc.total ? Number(tendered) - calc.total : null;
 
   const todayBS = fmtBSDate(new Date());
 
   return (
-    <form
-      action={async (formData) => {
-        await action(formData);
-        if (shouldPrint) {
-          setTimeout(() => window.print(), 300);
-        }
-      }}
-      className="space-y-4"
-    >
+    <form action={action} className="space-y-4">
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="expectedRate" value={tank?.ratePerL ?? ""} />
       <input type="hidden" name="paymentMethod" value={payment} />
@@ -133,27 +152,28 @@ function SaleFields({
             <label className="text-[11.5px] font-semibold text-text-muted block mb-1">
               Customer / Buyer (ग्राहक)
             </label>
-            <select
-              name="customerId"
-              value={customerId}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCustomerId(val);
-                if (val === "") {
-                  setPayment("CASH");
-                } else {
-                  setPayment("CREDIT");
-                }
-              }}
-              className="w-full rounded-lg border border-border bg-surface p-2 text-xs font-semibold text-text focus:border-accent"
-            >
-              <option value="">Retail Walk-In Customer (Cash)</option>
+            <Input
+              name="buyerName"
+              list="buyer-suggestions"
+              value={buyerName}
+              onChange={(e) => setBuyerName(e.target.value)}
+              placeholder="Leave blank for Retail Walk-In, or type a name e.g. Santosh, Jagdam Cement"
+              className="text-xs font-semibold"
+            />
+            <datalist id="buyer-suggestions">
               {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} — ({rs(Number(c.headroom))} credit available)
-                </option>
+                <option key={c.id} value={c.name} />
               ))}
-            </select>
+            </datalist>
+            {payment === "CREDIT" && (
+              <p className="mt-1 text-[10.5px] text-text-muted">
+                {customer
+                  ? `${rs(Number(customer.headroom))} credit available for ${customer.name}.`
+                  : trimmedBuyer
+                    ? `New customer — no credit limit set yet. Set one on the Credit page before billing them on credit.`
+                    : "Enter the customer's name to bill this on credit."}
+              </p>
+            )}
           </div>
 
           <div>
@@ -349,9 +369,11 @@ function SaleFields({
           Insufficient fuel in tank: Only {stock.toLocaleString("en-IN")} L remaining.
         </div>
       )}
-      {overCredit && customer && (
+      {overCredit && (
         <div className="rounded-lg border border-error/30 bg-error/8 p-2.5 text-xs text-error">
-          Credit limit exceeded: {customer.name} has only {rs(Number(customer.headroom))} available.
+          {customer
+            ? `Credit limit exceeded: ${customer.name} has only ${rs(Number(customer.headroom))} available.`
+            : `"${trimmedBuyer || "This customer"}" has no credit limit set yet — set one on the Credit page, or choose Cash / Card / Online for this sale.`}
         </div>
       )}
       {error && (
@@ -364,7 +386,6 @@ function SaleFields({
       <div className="grid grid-cols-2 gap-2.5 pt-2">
         <PrimaryButton
           type="submit"
-          onClick={() => setShouldPrint(false)}
           disabled={pending || !calc || overStock || overCredit}
           className="w-full py-2.5 text-xs font-bold"
         >
@@ -374,7 +395,7 @@ function SaleFields({
 
         <PrimaryButton
           type="submit"
-          onClick={() => setShouldPrint(true)}
+          onClick={onRequestPrint}
           disabled={pending || !calc || overStock || overCredit}
           className="w-full py-2.5 text-xs font-bold bg-accent text-[#1A1306] hover:bg-accent-hi"
         >

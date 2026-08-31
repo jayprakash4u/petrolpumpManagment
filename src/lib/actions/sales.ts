@@ -54,7 +54,7 @@ const SaleSchema = z.object({
   paymentMethod: z.enum(["CASH", "CREDIT", "ONLINE", "CARD"]),
   onlineProvider: z.string().optional(),
   paymentRef: z.string().optional(),
-  customerId: z.string().optional(),
+  buyerName: z.string().optional(),
   vehicleNo: z.string().optional(),
   discountAmount: z.string().optional(),
   cashTendered: z.string().optional(),
@@ -86,7 +86,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
     paymentMethod: formData.get("paymentMethod"),
     onlineProvider: formData.get("onlineProvider") ?? undefined,
     paymentRef: formData.get("paymentRef") ?? undefined,
-    customerId: formData.get("customerId") ?? undefined,
+    buyerName: formData.get("buyerName") ?? undefined,
     vehicleNo: formData.get("vehicleNo") ?? undefined,
     discountAmount: formData.get("discountAmount") ?? undefined,
     cashTendered: formData.get("cashTendered") ?? undefined,
@@ -140,14 +140,25 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         );
       }
 
-      let customerName: string | null = null;
-      if (input.paymentMethod === "CREDIT") {
-        if (!input.customerId) throw new SaleError("Choose the credit customer this sale is billed to.");
+      const buyerName = (input.buyerName ?? "").trim();
 
-        const customer = await tx.customer.findFirst({
-          where: { id: input.customerId, stationId: user.stationId, active: true },
+      let customerId: string | null = null;
+      if (input.paymentMethod === "CREDIT") {
+        if (!buyerName) throw new SaleError("Enter the customer's name for a credit sale.");
+
+        let customer = await tx.customer.findFirst({
+          where: { stationId: user.stationId, active: true, name: buyerName },
         });
-        if (!customer) throw new SaleError("That credit customer no longer exists.");
+
+        if (!customer) {
+          // First time this name has been billed on credit here — open a
+          // ledger account for them with a zero limit. The sale below still
+          // needs an explicit credit limit before it can go through, so a
+          // mistyped name can't quietly walk out with unlimited credit.
+          customer = await tx.customer.create({
+            data: { stationId: user.stationId, name: buyerName, creditLimit: new D(0), dueAmount: new D(0) },
+          });
+        }
 
         const headroom = creditHeadroom(customer.creditLimit, customer.dueAmount);
         if (totalAmount.gt(headroom)) {
@@ -159,7 +170,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
               fmtRs(customer.creditLimit) +
               ", owes " +
               fmtRs(customer.dueAmount) +
-              "). Take cash or record a payment first."
+              "). Set a credit limit for them on the Credit page, or take cash/card/online for this sale."
           );
         }
 
@@ -174,7 +185,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         if (charged.count === 0) {
           throw new SaleError(customer.name + "'s balance changed while you were entering this. Try again.");
         }
-        customerName = customer.name;
+        customerId = customer.id;
       }
 
       // Mint a gap-free per-station receipt number. The atomic increment
@@ -196,7 +207,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
           ratePerL: tank.ratePerL,
           totalAmount,
           paymentMethod: input.paymentMethod === "CREDIT" ? "CREDIT" : "CASH",
-          customerId: input.paymentMethod === "CREDIT" ? input.customerId : null,
+          customerId,
+          buyerName: buyerName || null,
           vehicleNo: input.vehicleNo ? input.vehicleNo.trim().toUpperCase() : null,
           soldById: user.id,
         },
@@ -219,7 +231,8 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
             vehicleNo: input.vehicleNo ?? null,
             onlineProvider: input.onlineProvider ?? null,
             paymentRef: input.paymentRef ?? null,
-            customerId: input.customerId ?? null,
+            customerId,
+            buyerName: buyerName || null,
             tankLevelAfter: tank.levelL.sub(liters).toString(),
           }),
         },
@@ -244,7 +257,7 @@ export async function recordSaleAction(_prev: SaleFormState, formData: FormData)
         paymentMethod: input.paymentMethod,
         onlineProvider: input.onlineProvider ?? null,
         paymentRef: input.paymentRef ?? null,
-        customerName,
+        customerName: buyerName || null,
         vehicleNo: input.vehicleNo ? input.vehicleNo.trim().toUpperCase() : null,
         changeDue: tendered && tendered.gte(totalAmount) ? fmtRs(tendered.sub(totalAmount)) : null,
         soldBy: user.name,

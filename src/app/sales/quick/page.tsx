@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { MOCK_FUEL_OPTIONS } from "@/lib/mock/bills";
 import { Card } from "@/components/ui/Card";
 import { SectionTitle } from "@/components/ui/SectionTitle";
+import { Badge } from "@/components/ui/Badge";
 import { QuickSaleForm } from "@/components/billing/QuickSaleForm";
 import { StaticDataNotice } from "@/components/billing/StaticDataNotice";
 
@@ -32,7 +33,13 @@ export default async function QuickSalePage() {
       </div>
 
       <Card>
-        <SectionTitle icon={Zap} title="Quick Sale" subtitle="Pick a fuel, type an amount, done" />
+        <div className="flex items-start justify-between gap-3">
+          <SectionTitle icon={Zap} title="Quick Sale" subtitle="Pick a fuel, type an amount, done" />
+          <div className="hidden shrink-0 items-center gap-1.5 pt-1 sm:flex">
+            <Badge tone="success">Cash only</Badge>
+            <Badge tone="muted">No lookup</Badge>
+          </div>
+        </div>
         <QuickSaleForm fuels={MOCK_FUEL_OPTIONS} />
       </Card>
     </div>

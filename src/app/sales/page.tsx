@@ -33,6 +33,7 @@ export default async function SalesPage() {
             sales={data.recentSales}
             canVoid={can(user.role, "voidSale")}
             customers={data.customers}
+            stationName={data.stationName}
           />
         </Card>
       </div>

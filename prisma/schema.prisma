@@ -208,6 +208,7 @@ model Sale {
   paymentMethod String    // CASH, CREDIT
   customerId    String?
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  buyerName     String?   // free-text name typed at point of sale; kept even when it also resolves to a Customer
   soldById      String
   soldBy        User      @relation(fields: [soldById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt     DateTime  @default(now())

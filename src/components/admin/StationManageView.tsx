@@ -2,6 +2,7 @@
 
 import { useState, useActionState } from "react";
 import Link from "next/link";
+import { clsx } from "clsx";
 import {
   Building2,
   ShieldCheck,
@@ -33,14 +34,17 @@ import {
 import {
   updateStationProfileAdminAction,
   updateStationAdminCredentialsAction,
+  updateStationStaffProfileAdminAction,
   type UpdateStationProfileState,
   type StationAdminCredentialState,
+  type StationStaffProfileState,
 } from "@/lib/actions/platform";
 import { Field, Input } from "@/components/ui/Field";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SuspendControl } from "@/components/admin/AdminForms";
 import { fmtBSLong } from "@/lib/bs-date";
+import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
 
 interface StationManageProps {
   slug: string;
@@ -69,9 +73,9 @@ interface StationManageProps {
     tanks: Array<{
       id: string;
       fuel: string;
-      capacityL: any;
-      levelL: any;
-      ratePerL: any;
+      capacityL: number;
+      levelL: number;
+      ratePerL: number;
     }>;
     users: Array<{
       id: string;
@@ -94,6 +98,8 @@ interface StationManageProps {
   };
 }
 
+type StationUser = NonNullable<StationManageProps["station"]>["users"][number];
+
 export function StationManageView({ slug, tenant, station, stats }: StationManageProps) {
   // Station Profile Edit State
   const [profileState, profileAction, profilePending] = useActionState(
@@ -107,11 +113,21 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
     {} as StationAdminCredentialState
   );
 
-  // Active selected user for credential reset
-  const [selectedUser, setSelectedUser] = useState<StationManageProps["station"] extends null ? any : NonNullable<StationManageProps["station"]>["users"][number] | null>(null);
+  // Staff Profile (non-credential) Edit State
+  const [staffProfileState, staffProfileAction, staffProfilePending] = useActionState(
+    updateStationStaffProfileAdminAction,
+    {} as StationStaffProfileState
+  );
+
+  // Active selected user for credential reset (Owner-only Account Recovery)
+  const [selectedUser, setSelectedUser] = useState<StationUser | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+
+  // Read-only "View Details" and editable "Change Details" (name/contact only)
+  const [viewingUser, setViewingUser] = useState<StationUser | null>(null);
+  const [editingUser, setEditingUser] = useState<StationUser | null>(null);
 
   const handleGenerateKey = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
@@ -156,7 +172,7 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
               </Badge>
             </div>
             <p className="text-[12px] text-text-muted">
-              Dedicated Database: <code className="font-mono text-emerald-400 font-bold">[{tenant.databaseName}]</code> on <code className="font-mono text-text">{tenant.databaseServer}</code>
+              Dedicated Database: <code className="font-mono text-success font-bold">[{tenant.databaseName}]</code> on <code className="font-mono text-text">{tenant.databaseServer}</code>
             </p>
           </div>
         </div>
@@ -188,7 +204,7 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
             {stats.tanksCount} Tanks
           </div>
           <div className="text-[11px] text-text-muted">
-            {station?.tanks.map((t) => t.fuel).join(", ") || "No tanks initialized"}
+            {station?.tanks.map((t) => FUEL_LABEL[t.fuel as FuelId] ?? t.fuel).join(", ") || "No tanks initialized"}
           </div>
         </div>
 
@@ -206,7 +222,7 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
 
         <div className="rounded-2xl border border-border bg-surface p-4 space-y-1">
           <div className="flex items-center gap-2 text-xs text-text-muted">
-            <HardDrive size={14} className="text-emerald-400" /> Invoices Billed
+            <HardDrive size={14} className="text-success" /> Invoices Billed
           </div>
           <div className="font-display text-xl font-bold text-text">
             {stats.salesCount.toLocaleString("en-IN")} Sales
@@ -310,23 +326,33 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
                 </div>
               </div>
 
-              {/* Dedicated Database Name */}
+              {/* Dedicated Database — read-only. This is the routing key
+                  getTenantDb() uses to build the connection string; nothing
+                  here renames the physical SQL Server database to match, so
+                  it can't safely be edited as a plain form field. */}
               <div className="rounded-xl border border-border/80 bg-surface-hi p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Database size={15} className="text-emerald-400" />
-                  <span className="text-xs font-bold text-text">Dedicated Database Connection</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database size={15} className="text-success" />
+                    <span className="text-xs font-bold text-text">Dedicated Database Connection</span>
+                  </div>
+                  <span className="rounded-md bg-border/60 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-text-muted uppercase">
+                    System-managed
+                  </span>
                 </div>
-                <Field label="SQL Server Database Name" htmlFor="pDb">
-                  <Input
-                    id="pDb"
-                    name="databaseName"
-                    defaultValue={tenant.databaseName}
-                    placeholder="FuelStation_station"
-                    required
-                  />
-                </Field>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-border bg-bg px-3 py-2.5 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-text-muted">Database:</span>
+                    <code className="font-mono font-bold text-success">[{tenant.databaseName}]</code>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-text-muted">Server:</span>
+                    <code className="font-mono text-text">{tenant.databaseServer}</code>
+                  </div>
+                </div>
                 <p className="text-[11px] text-text-muted">
-                  Changing the database name will update the tenant routing in Master DB.
+                  Set once at onboarding and not editable here — moving a live station to a different database is a
+                  migration, not a field on this form.
                 </p>
               </div>
 
@@ -354,6 +380,11 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
               </span>
             </div>
 
+            <p className="text-[11.5px] text-text-muted">
+              Platform admin can recover access only for the station <strong className="text-text">Owner</strong> —
+              other staff accounts are managed by the owner from inside the station.
+            </p>
+
             {credState?.message && (
               <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 p-3 text-xs text-success font-medium">
                 <CheckCircle2 size={16} /> {credState.message}
@@ -364,6 +395,11 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
                 <AlertCircle size={16} /> {credState.error}
               </div>
             )}
+            {staffProfileState?.message && (
+              <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 p-3 text-xs text-success font-medium">
+                <CheckCircle2 size={16} /> {staffProfileState.message}
+              </div>
+            )}
 
             {/* Users Roster */}
             <div className="space-y-2.5">
@@ -372,32 +408,70 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
                 return (
                   <div
                     key={u.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-bg p-3.5 hover:border-accent/40 transition-all"
+                    className={clsx(
+                      "flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 transition-all",
+                      u.active ? "border-border/80 bg-bg hover:border-accent/40" : "border-error/30 bg-error/5 opacity-80"
+                    )}
                   >
-                    <div className="space-y-0.5 min-w-[150px]">
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-42.5 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-bold text-text">{u.name}</span>
                         <Badge tone={isOwner ? "accent" : "muted"} className="text-[10px] py-0 px-1.5">
                           {u.role}
                         </Badge>
+                        {!u.active && (
+                          <Badge tone="error" className="text-[10px] py-0 px-1.5">
+                            DISABLED
+                          </Badge>
+                        )}
+                        {u.onShift && (
+                          <Badge tone="success" className="text-[10px] py-0 px-1.5">
+                            ON SHIFT
+                          </Badge>
+                        )}
                       </div>
-                      <div className="font-mono text-[11px] text-accent font-semibold">
-                        @{u.username}
-                      </div>
+                      <div className="font-mono text-[11px] text-accent font-semibold">@{u.username}</div>
+                      {u.employeeId && (
+                        <div className="text-[10.5px] text-text-muted">Employee ID: {u.employeeId}</div>
+                      )}
                       {u.phone && <div className="text-[10.5px] text-text-muted">{u.phone}</div>}
+                      {u.email && <div className="text-[10.5px] text-text-muted">{u.email}</div>}
+                      <div className="text-[10.5px] text-text-muted">Joined {fmtBSLong(u.createdAt)}</div>
                     </div>
 
-                    <GhostButton
-                      type="button"
-                      onClick={() => {
-                        setSelectedUser(u);
-                        setNewPassword("");
-                      }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-surface-hi"
-                    >
-                      <KeyRound size={13} className="text-accent" />
-                      Edit / Reset
-                    </GhostButton>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <GhostButton
+                        type="button"
+                        onClick={() => setViewingUser(u)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-surface-hi"
+                      >
+                        <UserCheck size={13} className="text-text-muted" />
+                        View Details
+                      </GhostButton>
+
+                      <GhostButton
+                        type="button"
+                        onClick={() => setEditingUser(u)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-surface-hi"
+                      >
+                        <Edit3 size={13} className="text-text-muted" />
+                        Change Details
+                      </GhostButton>
+
+                      {isOwner && (
+                        <GhostButton
+                          type="button"
+                          onClick={() => {
+                            setSelectedUser(u);
+                            setNewPassword("");
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-text hover:bg-surface-hi"
+                        >
+                          <KeyRound size={13} className="text-accent" />
+                          Account Recovery
+                        </GhostButton>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -423,17 +497,24 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
               <div className="flex items-center gap-2">
                 <KeyRound size={18} className="text-accent" />
                 <h3 className="font-display text-[16px] font-bold text-text">
-                  Manage Account: @{selectedUser.username}
+                  Owner Account Recovery: @{selectedUser.username}
                 </h3>
               </div>
-              <Badge tone={selectedUser.role === "OWNER" ? "accent" : "muted"}>
-                {selectedUser.role}
-              </Badge>
+              <Badge tone="accent">{selectedUser.role}</Badge>
             </div>
 
             <p className="text-xs text-text-muted">
-              Update username, full name, or directly set a new password for this user inside the dedicated station database.
+              This is a support action against the station owner's own login — it is written to the platform audit
+              trail with the reason below.
             </p>
+
+            {/* Sign-in for this account is the (Station Code, Username, Password)
+                triple together — show the code here too so it's copied as one
+                complete set, not scattered across two screens. */}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2 text-xs">
+              <span className="text-text-muted">Station Code (needed to sign in)</span>
+              <code className="font-mono font-bold text-accent">{slug}</code>
+            </div>
 
             <Field label="Staff Full Name" htmlFor="uName">
               <Input
@@ -468,7 +549,7 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-[9px] top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
+                    className="absolute right-2.25 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
                   >
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -512,12 +593,142 @@ export function StationManageView({ slug, tenant, station, stats }: StationManag
               </select>
             </div>
 
+            <Field label="Reason for this recovery (required — goes on the audit trail)" htmlFor="uReason">
+              <Input
+                id="uReason"
+                name="reason"
+                placeholder="e.g. Owner locked out, verified by phone with Ramesh at 10:40am"
+                required
+                minLength={3}
+              />
+            </Field>
+
             <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
               <GhostButton type="button" onClick={() => setSelectedUser(null)}>
                 Cancel
               </GhostButton>
               <PrimaryButton type="submit" disabled={credPending}>
                 {credPending ? "Saving…" : "Save New Credentials"}
+              </PrimaryButton>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: View Details (read-only) */}
+      {viewingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-surface shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <UserCheck size={18} className="text-accent" />
+                <h3 className="font-display text-[16px] font-bold text-text">{viewingUser.name}</h3>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Badge tone={viewingUser.role === "OWNER" ? "accent" : "muted"}>{viewingUser.role}</Badge>
+                {!viewingUser.active && <Badge tone="error">DISABLED</Badge>}
+              </div>
+            </div>
+
+            <dl className="space-y-2.5 text-xs">
+              {[
+                ["Station Code", slug],
+                ["Username", `@${viewingUser.username}`],
+                ["Password", "Set — hashed one-way, can't be viewed, only reset"],
+                ["Employee ID", viewingUser.employeeId || "—"],
+                ["Phone", viewingUser.phone || "—"],
+                ["Email", viewingUser.email || "—"],
+                ["Currently on shift", viewingUser.onShift ? "Yes" : "No"],
+                ["Account status", viewingUser.active ? "Active (can sign in)" : "Disabled (blocked from sign in)"],
+                ["Joined", fmtBSLong(viewingUser.createdAt)],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-3 border-b border-border/60 pb-2">
+                  <dt className="text-text-muted">{label}</dt>
+                  <dd className="font-medium text-text">{value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              {viewingUser.role === "OWNER" ? (
+                <GhostButton
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(viewingUser);
+                    setNewPassword("");
+                    setViewingUser(null);
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:bg-accent/10"
+                >
+                  <KeyRound size={13} />
+                  Reset Password / Account Recovery
+                </GhostButton>
+              ) : (
+                <span />
+              )}
+              <GhostButton type="button" onClick={() => setViewingUser(null)}>
+                Close
+              </GhostButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Change Details — name/contact only, no credentials. Available
+          for every staff member, unlike Account Recovery above which is
+          Owner-only. */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
+          <form
+            action={async (formData) => {
+              await staffProfileAction(formData);
+              setEditingUser(null);
+            }}
+            className="w-full max-w-md rounded-2xl border border-border bg-surface shadow-2xl p-6 space-y-4"
+          >
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="userId" value={editingUser.id} />
+
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 size={18} className="text-accent" />
+                <h3 className="font-display text-[16px] font-bold text-text">Change Details: {editingUser.name}</h3>
+              </div>
+              <Badge tone={editingUser.role === "OWNER" ? "accent" : "muted"}>{editingUser.role}</Badge>
+            </div>
+
+            <p className="text-xs text-text-muted">
+              Contact and identity fields only — login username and password aren&apos;t editable here.
+            </p>
+
+            <Field label="Full Name" htmlFor="sName">
+              <Input id="sName" name="name" defaultValue={editingUser.name} required />
+            </Field>
+
+            <Field label="Employee ID" htmlFor="sEmployeeId">
+              <Input id="sEmployeeId" name="employeeId" defaultValue={editingUser.employeeId ?? ""} placeholder="e.g. EMP-004" />
+            </Field>
+
+            <Field label="Phone" htmlFor="sPhone">
+              <Input id="sPhone" name="phone" defaultValue={editingUser.phone ?? ""} placeholder="e.g. 9851000000" />
+            </Field>
+
+            <Field label="Email" htmlFor="sEmail">
+              <Input id="sEmail" name="email" type="email" defaultValue={editingUser.email ?? ""} placeholder="e.g. staff@station.com" />
+            </Field>
+
+            {staffProfileState?.error && (
+              <div className="flex items-center gap-2 rounded-xl border border-error/30 bg-error/10 p-3 text-xs text-error font-medium">
+                <AlertCircle size={16} /> {staffProfileState.error}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+              <GhostButton type="button" onClick={() => setEditingUser(null)}>
+                Cancel
+              </GhostButton>
+              <PrimaryButton type="submit" disabled={staffProfilePending}>
+                {staffProfilePending ? "Saving…" : "Save Details"}
               </PrimaryButton>
             </div>
           </form>

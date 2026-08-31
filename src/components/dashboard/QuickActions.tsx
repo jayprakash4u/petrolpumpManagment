@@ -5,7 +5,6 @@ import {
   Truck,
   Droplets,
   HandCoins,
-  Car,
   RotateCcw,
   BarChart3,
   ArrowRight,
@@ -15,6 +14,16 @@ import { clsx } from "clsx";
 
 export function QuickActions() {
   const actions = [
+    {
+      id: "quick-sale",
+      title: "Quick Sale",
+      nepaliTitle: "द्रुत बिक्री",
+      subtitle: "Cash-only fast entry, no lookup",
+      href: "/sales/quick",
+      icon: Zap,
+      borderHover: "hover:border-cyan-500/50 hover:bg-cyan-500/5",
+      iconTone: "text-cyan-400 bg-cyan-500/15",
+    },
     {
       id: "new-sale",
       title: "New Fuel Sale",
@@ -67,16 +76,6 @@ export function QuickActions() {
       icon: HandCoins,
       borderHover: "hover:border-teal-500/50 hover:bg-teal-500/5",
       iconTone: "text-teal-400 bg-teal-500/15",
-    },
-    {
-      id: "vehicle-fleet",
-      title: "Vehicle Fleet Fueling",
-      nepaliTitle: "गाडी अनुसार इन्धन",
-      subtitle: "Fleet monthly ledger & statements",
-      href: "/sales/vehicle",
-      icon: Car,
-      borderHover: "hover:border-cyan-500/50 hover:bg-cyan-500/5",
-      iconTone: "text-cyan-400 bg-cyan-500/15",
     },
     {
       id: "sales-return",

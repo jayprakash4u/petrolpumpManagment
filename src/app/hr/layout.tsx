@@ -6,7 +6,7 @@ export default async function HrLayout({ children }: { children: ReactNode }) {
   const user = await requireUser();
 
   return (
-    <DashboardShell title="HR & Payroll" userName={user.name} userRole={user.role}>
+    <DashboardShell title="HR & Payroll" userName={user.name} userRole={user.role} stationName={user.station.name}>
       {children}
     </DashboardShell>
   );

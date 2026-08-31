@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Printer, X, CheckCircle2 } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
-import { fmtRs, fmtL } from "@/lib/money";
+import { fmtRs, fmtL, fmtRate } from "@/lib/money";
+import { fmtBSDateTime } from "@/lib/bs-date";
+import type { ReceiptDTO } from "@/lib/actions/sales";
+import { TaxInvoice } from "./TaxInvoice";
 
 interface PrintableSaleItem {
   id: string;
   receiptNo: number;
+  billNumber: string;
   fuel: string;
   liters: any;
   ratePerL: any;
@@ -16,32 +19,51 @@ interface PrintableSaleItem {
   paymentMethod: string;
   createdAt: Date | string;
   customerName?: string | null;
+  vehicleNo?: string | null;
   soldByName: string;
 }
 
-function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1">
-      <span className="text-[12px] text-text-muted">{label}</span>
-      <span className={"font-data " + (strong ? "text-[15px] font-semibold text-accent" : "text-[13px] text-text")}>
-        {value}
-      </span>
-    </div>
-  );
+/** Reconstruct the same ReceiptDTO shape TaxInvoice renders elsewhere, from
+ *  a historical sale record. Fields that were never persisted for older
+ *  sales (discount, online/card reference, cash change) are simply absent —
+ *  the invoice layout already treats them as optional. */
+function toReceiptDTO(sale: PrintableSaleItem, stationName: string): ReceiptDTO {
+  const total = Number(sale.totalAmount);
+  const taxable = total / 1.13;
+  const vat = total - taxable;
+  const createdAt = typeof sale.createdAt === "string" ? new Date(sale.createdAt) : sale.createdAt;
+
+  return {
+    receiptNo: sale.receiptNo,
+    billNumber: sale.billNumber,
+    stationName,
+    fuelLabel: FUEL_LABEL[sale.fuel as FuelId] || sale.fuel,
+    liters: fmtL(sale.liters),
+    rate: fmtRate(sale.ratePerL),
+    total: fmtRs(total),
+    subtotal: fmtRs(taxable),
+    taxableAmount: fmtRs(taxable),
+    vatAmount: fmtRs(vat),
+    paymentMethod: sale.paymentMethod as ReceiptDTO["paymentMethod"],
+    customerName: sale.customerName ?? null,
+    vehicleNo: sale.vehicleNo ?? null,
+    changeDue: null,
+    soldBy: sale.soldByName,
+    at: fmtBSDateTime(createdAt),
+    dateBS: fmtBSDateTime(createdAt).split(" ")[0] || "",
+  };
 }
 
 export function PrintReceiptModal({
   sale,
+  stationName,
   onClose,
 }: {
   sale: PrintableSaleItem;
+  stationName: string;
   onClose: () => void;
 }) {
-  const fuelLabel = FUEL_LABEL[sale.fuel as FuelId] || sale.fuel;
-  const dateStr =
-    typeof sale.createdAt === "string"
-      ? new Date(sale.createdAt).toLocaleString()
-      : sale.createdAt.toLocaleString();
+  const receipt = toReceiptDTO(sale, stationName);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
@@ -63,29 +85,7 @@ export function PrintReceiptModal({
 
         {/* Printable Receipt Body */}
         <div className="p-4">
-          <div className="print-area rounded-xl border border-border bg-bg p-4 print:border-0 print:bg-white print:text-black">
-            <div className="mb-3 border-b border-dashed border-border pb-2 text-center">
-              <div className="font-display text-[15px] font-bold text-text print:text-black">
-                SHREE PASHUPATI PETROLEUM
-              </div>
-              <div className="font-data text-[11px] text-text-muted">
-                RECEIPT #{sale.receiptNo}
-              </div>
-              <div className="font-data text-[10.5px] text-text-muted">{dateStr}</div>
-            </div>
-
-            <Line label="Fuel Product" value={fuelLabel} />
-            <Line label="Unit Rate" value={`Rs ${Number(sale.ratePerL).toFixed(2)}/L`} />
-            <Line label="Volume" value={fmtL(sale.liters)} />
-            <div className="my-1 border-t border-dashed border-border" />
-            <Line label="Total Amount" value={fmtRs(sale.totalAmount)} strong />
-            <Line label="Payment Mode" value={sale.paymentMethod} />
-            {sale.customerName && <Line label="Billed to" value={sale.customerName} />}
-
-            <div className="mt-3 border-t border-dashed border-border pt-2 text-center font-data text-[10.5px] text-text-muted">
-              Served by {sale.soldByName} · Thank you!
-            </div>
-          </div>
+          <TaxInvoice receipt={receipt} />
         </div>
 
         {/* Footer Actions */}

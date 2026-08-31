@@ -84,8 +84,21 @@ a:focus-visible {
 }
 
 @media print {
-  body * {
+  @page {
+    margin: 8mm;
+  }
+  /* `position: fixed` below only pins to the page if nothing between
+     .print-area and the root has a `transform` (it opens a new positioning
+     context, so fixed elements anchor to it instead of the viewport). Any
+     hidden ancestor's fade/slide animation, or a modal's transform, would
+     silently break the print layout — so strip transforms everywhere while
+     printing rather than trust every component to stay transform-free. */
+  body *,
+  body *::before,
+  body *::after {
     visibility: hidden;
+    transform: none !important;
+    animation: none !important;
   }
   .print-area,
   .print-area * {

@@ -321,7 +321,6 @@ const UpdateStationProfileSchema = z.object({
   phone: z.string().trim().max(30).optional(),
   email: z.string().trim().max(100).optional(),
   address: z.string().trim().min(2, "Address is required").max(200),
-  databaseName: z.string().trim().min(1, "Database name is required"),
 });
 
 export async function updateStationProfileAdminAction(
@@ -337,14 +336,13 @@ export async function updateStationProfileAdminAction(
     phone: formData.get("phone") ?? undefined,
     email: formData.get("email") ?? undefined,
     address: formData.get("address") ?? "",
-    databaseName: formData.get("databaseName") ?? "",
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const { slug, name, companyName, phone, email, address, databaseName } = parsed.data;
+  const { slug, name, companyName, phone, email, address } = parsed.data;
 
   try {
     const master = getMasterDb();
@@ -352,7 +350,13 @@ export async function updateStationProfileAdminAction(
     if (!tenant) throw new PlatformError(`Station "${slug}" not found.`);
 
     // 1. Update Master DB Tenant Registry
-    const cleanDbName = databaseName.replace(/[^a-zA-Z0-9_]/g, "_");
+    //
+    // databaseName is deliberately NOT editable here: it's the routing key
+    // getTenantDb() uses to build the connection string, and this action
+    // never renames the physical SQL Server database to match. Letting an
+    // admin retype it would silently repoint the tenant at a database that
+    // doesn't exist (or someone else's), locking the station out. Moving a
+    // tenant to a different database is a migration, not a form field.
     await master.tenant.update({
       where: { slug },
       data: {
@@ -361,7 +365,6 @@ export async function updateStationProfileAdminAction(
         phone: phone?.trim() || null,
         email: email?.trim() || null,
         address,
-        databaseName: cleanDbName,
       },
     });
 
@@ -391,7 +394,7 @@ export async function updateStationProfileAdminAction(
         action: "STATION_PROFILE_UPDATED",
         entityType: "Tenant",
         entityId: tenant.id,
-        metadata: JSON.stringify({ slug, name, databaseName: cleanDbName }),
+        metadata: JSON.stringify({ slug, name }),
       },
     });
 
@@ -421,6 +424,7 @@ const UpdateAdminCredentialSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
   newPassword: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
   active: z.enum(["true", "false"]).optional(),
+  reason: z.string().trim().min(3, "Give a reason for this account recovery — it goes on the audit trail."),
 });
 
 export async function updateStationAdminCredentialsAction(
@@ -436,13 +440,14 @@ export async function updateStationAdminCredentialsAction(
     username: formData.get("username") ?? "",
     newPassword: formData.get("newPassword") ?? "",
     active: formData.get("active") ?? "true",
+    reason: formData.get("reason") ?? "",
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const { slug, userId, name, username, newPassword, active } = parsed.data;
+  const { slug, userId, name, username, newPassword, active, reason } = parsed.data;
   const cleanUsername = normalizeUsername(username);
   const usernameProblem = checkUsername(cleanUsername);
   if (usernameProblem) return { error: USERNAME_PROBLEM_MESSAGE[usernameProblem] };
@@ -455,6 +460,16 @@ export async function updateStationAdminCredentialsAction(
 
     if (!existingUser) {
       throw new PlatformError("User account not found in station database.");
+    }
+
+    // Platform admin support access is scoped to account recovery for the
+    // station owner — not a general-purpose way to reach into any staff
+    // member's login. Ordinary attendants/managers are the owner's own
+    // account to manage from inside the station (Staff & Attendants).
+    if (existingUser.role !== "OWNER") {
+      throw new PlatformError(
+        "Platform admin can only reset the station Owner's credentials. Other staff accounts are managed by the station owner."
+      );
     }
 
     // Check username clash if changed
@@ -498,6 +513,7 @@ export async function updateStationAdminCredentialsAction(
           stationSlug: slug,
           username: cleanUsername,
           passwordChanged: !!newPassword,
+          reason,
         }),
       },
     });
@@ -512,6 +528,89 @@ export async function updateStationAdminCredentialsAction(
     if (err instanceof PlatformError) return { error: err.message };
     console.error("updateStationAdminCredentialsAction failed", err);
     return { error: "Failed to update staff credentials. Please try again." };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Super Admin: Edit a staff member's profile details (support use)
+ *
+ * Deliberately narrower than credential recovery above: this never touches
+ * username, password, or active status — just the contact/identity fields a
+ * support agent might reasonably need to correct (a mistyped phone number,
+ * a changed employee ID). Available for any staff member, not just the
+ * Owner, because there's no login-security exposure in fixing a phone
+ * number the way there is in resetting a password.
+ * ------------------------------------------------------------------ */
+
+export interface StationStaffProfileState {
+  error?: string;
+  message?: string;
+}
+
+const UpdateStaffProfileSchema = z.object({
+  slug: z.string().trim().min(1),
+  userId: z.string().trim().min(1),
+  name: z.string().trim().min(2, "Full name is required").max(80),
+  employeeId: z.string().trim().max(40).optional(),
+  phone: z.string().trim().max(30).optional(),
+  email: z.string().trim().max(100).optional(),
+});
+
+export async function updateStationStaffProfileAdminAction(
+  _prev: StationStaffProfileState,
+  formData: FormData
+): Promise<StationStaffProfileState> {
+  const admin = await requirePlatformAdmin();
+
+  const parsed = UpdateStaffProfileSchema.safeParse({
+    slug: formData.get("slug") ?? "",
+    userId: formData.get("userId") ?? "",
+    name: formData.get("name") ?? "",
+    employeeId: formData.get("employeeId") ?? undefined,
+    phone: formData.get("phone") ?? undefined,
+    email: formData.get("email") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const { slug, userId, name, employeeId, phone, email } = parsed.data;
+
+  try {
+    const tenantDb = await getTenantDb(slug);
+    const existingUser = await tenantDb.user.findUnique({ where: { id: userId } });
+    if (!existingUser) {
+      throw new PlatformError("User account not found in station database.");
+    }
+
+    const updated = await tenantDb.user.update({
+      where: { id: userId },
+      data: {
+        name,
+        employeeId: employeeId?.trim() || null,
+        phone: phone?.trim() || null,
+        email: email?.trim() || null,
+      },
+    });
+
+    const master = getMasterDb();
+    await master.platformAuditLog.create({
+      data: {
+        actorId: admin.id,
+        action: "STATION_STAFF_PROFILE_UPDATED",
+        entityType: "User",
+        entityId: updated.id,
+        metadata: JSON.stringify({ stationSlug: slug, name }),
+      },
+    });
+
+    revalidatePath(`/admin/stations/${slug}`);
+    return { message: `Details for ${name} updated successfully.` };
+  } catch (err) {
+    if (err instanceof PlatformError) return { error: err.message };
+    console.error("updateStationStaffProfileAdminAction failed", err);
+    return { error: "Failed to update staff details. Please try again." };
   }
 }
 

@@ -74,14 +74,21 @@ export async function readSession() {
     const tenantDb = await getTenantDb(verified.slug);
     const session = await tenantDb.session.findUnique({
       where: { id: verified.sid },
-      include: { user: { include: { station: { select: { suspendedAt: true } } } } },
+      include: { user: { include: { station: { select: { name: true, address: true, suspendedAt: true } } } } },
     });
 
     if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
     if (!session.user.active) return null;
     if (session.user.station.suspendedAt !== null) return null;
 
-    return { sessionId: session.id, user: session.user, tenantSlug: verified.slug };
+    return {
+      sessionId: session.id,
+      sessionCreatedAt: session.createdAt,
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
+      user: session.user,
+      tenantSlug: verified.slug,
+    };
   } catch (err) {
     console.error("readSession error:", err);
     return null;

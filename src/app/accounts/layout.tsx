@@ -6,7 +6,7 @@ export default async function AccountsLayout({ children }: { children: ReactNode
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Finance & Accounts" userName={user.name} userRole={user.role}>
+    <DashboardShell title="Finance & Accounts" userName={user.name} userRole={user.role} stationName={user.station.name}>
       {children}
     </DashboardShell>
   );

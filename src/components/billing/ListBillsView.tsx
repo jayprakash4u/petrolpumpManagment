@@ -629,12 +629,14 @@ export function ListBillsView({
                               setPrintingBill({
                                 id: b.id,
                                 receiptNo: b.receiptNo,
+                                billNumber: b.billNumber,
                                 fuel: b.fuel,
                                 liters: b.liters,
                                 ratePerL: b.rate,
                                 totalAmount: b.amount,
                                 paymentMethod: b.payment,
                                 customerName: b.customerName,
+                                vehicleNo: b.vehicleNo,
                                 soldByName: b.soldBy,
                                 createdAt: b.createdAt,
                               })
@@ -701,6 +703,7 @@ export function ListBillsView({
       {printingBill && (
         <PrintReceiptModal
           sale={printingBill}
+          stationName={initialData.stationName}
           onClose={() => setPrintingBill(null)}
         />
       )}
@@ -743,6 +746,7 @@ export function ListBillsView({
           }}
           canVoid={canVoid}
           customers={initialData.customers}
+          stationName={initialData.stationName}
           onClose={() => setViewingBill(null)}
           onSaleVoided={(voidedId) => {
             setBills((prev) =>

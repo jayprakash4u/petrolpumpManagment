@@ -24,15 +24,45 @@ import { clsx } from "clsx";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input, Select, Field } from "@/components/ui/Field";
-import { fmtRs, fmtL } from "@/lib/money";
+import { fmtRs, fmtL, fmtRate } from "@/lib/money";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
-import { voidSaleAction, editSaleAction } from "@/lib/actions/sales";
+import { voidSaleAction, editSaleAction, type ReceiptDTO } from "@/lib/actions/sales";
 import type { SerializedSale, CustomerOption } from "@/lib/queries/sales";
+import { TaxInvoice } from "./TaxInvoice";
+
+/** Reconstruct the same ReceiptDTO shape TaxInvoice renders everywhere else,
+ *  from an already-recorded sale. */
+function toReceiptDTO(sale: SerializedSale, stationName: string): ReceiptDTO {
+  const total = sale.totalAmount;
+  const taxable = total / 1.13;
+  const vat = total - taxable;
+
+  return {
+    receiptNo: sale.receiptNo,
+    billNumber: sale.billNumber,
+    stationName,
+    fuelLabel: FUEL_LABEL[sale.fuel as FuelId] || sale.fuel,
+    liters: fmtL(sale.liters),
+    rate: fmtRate(sale.ratePerL),
+    total: fmtRs(total),
+    subtotal: fmtRs(taxable),
+    taxableAmount: fmtRs(taxable),
+    vatAmount: fmtRs(vat),
+    paymentMethod: sale.paymentMethod as ReceiptDTO["paymentMethod"],
+    customerName: sale.customerName ?? null,
+    vehicleNo: sale.vehicleNo ?? null,
+    changeDue: null,
+    soldBy: sale.soldByName,
+    at: `${sale.formattedDateBS} ${sale.formattedTime}`,
+    dateBS: sale.formattedDateBS,
+  };
+}
 
 export function BillDetailsModal({
   sale: initialSale,
   canVoid,
   customers = [],
+  stationName,
   onClose,
   onSaleVoided,
   onSaleEdited,
@@ -40,6 +70,7 @@ export function BillDetailsModal({
   sale: SerializedSale;
   canVoid: boolean;
   customers?: CustomerOption[];
+  stationName: string;
   onClose: () => void;
   onSaleVoided?: (saleId: string) => void;
   onSaleEdited?: (updatedSale: SerializedSale) => void;
@@ -73,8 +104,7 @@ export function BillDetailsModal({
   const handleDownloadSlip = () => {
     const textContent = `
 ========================================
-   SHREE PASHUPATI PETROLEUM CENTER
-       Maharajgunj, Kathmandu
+   ${stationName}
 ========================================
 INVOICE / RECEIPT: ${sale.billNumber}
 Date & Time: ${new Date(sale.createdAt).toLocaleString()}
@@ -325,64 +355,13 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
             /* STANDARD INVOICE DETAILS VIEW */
             <>
               {/* Printable Ticket Box */}
-              <div className="print-area rounded-xl border border-border bg-bg p-4 space-y-2.5 text-[12.5px]">
-                <div className="border-b border-dashed border-border pb-2 text-center">
-                  <div className="font-display font-bold text-text text-[14px]">
-                    SHREE PASHUPATI PETROLEUM
-                  </div>
-                  <div className="font-mono text-[11px] text-text-muted">
-                    BILL #{sale.billNumber} · {sale.formattedTime}
-                  </div>
-                </div>
+              <TaxInvoice receipt={toReceiptDTO(sale, stationName)} />
 
-                <div className="grid grid-cols-2 gap-2 text-[12px] pt-1">
-                  <div>
-                    <span className="text-text-muted block text-[11px]">Vehicle Plate:</span>
-                    <span className="font-mono font-bold text-accent">
-                      {sale.vehicleNo || "Walk-In (No Plate)"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-muted block text-[11px]">Customer / Account:</span>
-                    <span className="font-medium text-text">
-                      {sale.customerName || "Retail Walk-In Cash"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-text-muted block text-[11px]">Attendant:</span>
-                    <span className="text-text font-medium">{sale.soldByName}</span>
-                  </div>
-                  <div>
-                    <span className="text-text-muted block text-[11px]">Payment Mode:</span>
-                    <span className="font-semibold text-text">{sale.paymentMethod}</span>
-                  </div>
+              {sale.voided && (
+                <div className="rounded-lg border border-error/30 bg-error/10 p-2.5 text-[11.5px] text-error">
+                  <strong>Void Reason:</strong> {sale.voidReason || "Sales Return Recorded"}
                 </div>
-
-                <div className="border-t border-dashed border-border pt-2 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Product:</span>
-                    <span className="font-semibold text-text">{fuelLabel}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Volume Dispensed:</span>
-                    <span className="font-data font-bold text-text">{fmtL(sale.liters)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Unit Rate:</span>
-                    <span className="font-data text-text-muted">Rs {sale.ratePerL.toFixed(2)}/L</span>
-                  </div>
-                  <div className="flex justify-between border-t border-border pt-1.5 text-[14px] font-bold">
-                    <span className="text-accent">Total Amount:</span>
-                    <span className="font-data text-accent">{fmtRs(sale.totalAmount)}</span>
-                  </div>
-                </div>
-
-                {sale.voided && (
-                  <div className="rounded-lg border border-error/30 bg-error/10 p-2.5 text-[11.5px] text-error">
-                    <strong>Void Reason:</strong> {sale.voidReason || "Sales Return Recorded"}
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Void / Return Form (if triggered) */}
               {isVoiding && (

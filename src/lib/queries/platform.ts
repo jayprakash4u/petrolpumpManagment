@@ -98,9 +98,24 @@ export async function getStationAdminDetails(slug: string) {
     const salesCount = await tenantDb.sale.count();
     const customersCount = await tenantDb.customer.count();
 
+    // Prisma.Decimal instances can't cross the Server -> Client Component
+    // boundary (React can't serialize them) — flatten to plain numbers here,
+    // where the Decimal still exists, rather than passing them through.
+    const serializedStation = station && {
+      ...station,
+      tanks: station.tanks.map((t) => ({
+        ...t,
+        capacityL: Number(t.capacityL),
+        levelL: Number(t.levelL),
+        openingL: Number(t.openingL),
+        ratePerL: Number(t.ratePerL),
+        lowStockPct: Number(t.lowStockPct),
+      })),
+    };
+
     return {
       tenant,
-      station,
+      station: serializedStation,
       stats: {
         tanksCount: station?.tanks.length ?? 0,
         staffCount: station?.users.length ?? 0,

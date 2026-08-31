@@ -22,10 +22,12 @@ export function RecentSalesTable({
   sales,
   canVoid,
   customers = [],
+  stationName,
 }: {
   sales: SalesPageData["recentSales"];
   canVoid: boolean;
   customers?: SalesPageData["customers"];
+  stationName: string;
 }) {
   const [printingSale, setPrintingSale] = useState<any | null>(null);
   const [editingSale, setEditingSale] = useState<any | null>(null);
@@ -91,6 +93,7 @@ export function RecentSalesTable({
                         setPrintingSale({
                           id: s.id,
                           receiptNo: s.receiptNo,
+                          billNumber: s.billNumber,
                           fuel: s.fuel,
                           liters: s.liters,
                           ratePerL: s.ratePerL,
@@ -98,6 +101,7 @@ export function RecentSalesTable({
                           paymentMethod: s.paymentMethod,
                           createdAt: s.createdAt,
                           customerName: s.customerName,
+                          vehicleNo: s.vehicleNo,
                           soldByName: s.soldByName,
                         })
                       }
@@ -146,7 +150,7 @@ export function RecentSalesTable({
       </div>
 
       {printingSale && (
-        <PrintReceiptModal sale={printingSale} onClose={() => setPrintingSale(null)} />
+        <PrintReceiptModal sale={printingSale} stationName={stationName} onClose={() => setPrintingSale(null)} />
       )}
 
       {editingSale && (

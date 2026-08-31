@@ -40,6 +40,7 @@ export interface BillsPageTotals {
 }
 
 export interface BillsPageData {
+  stationName: string;
   bills: SerializedBillItem[];
   totals: BillsPageTotals;
   customers: { id: string; name: string; headroom: string; dueAmount: string }[];
@@ -254,7 +255,8 @@ export async function getBillsPageData(
     ];
   }
 
-  const [rawSales, customers] = await Promise.all([
+  const [station, rawSales, customers] = await Promise.all([
+    tenantDb.station.findFirst({ where: { id: stationId }, select: { name: true } }),
     tenantDb.sale.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -335,6 +337,7 @@ export async function getBillsPageData(
   }
 
   return {
+    stationName: station?.name ?? "Station",
     bills,
     totals: {
       totalCount: bills.length,

@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, Info } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { requireUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { parseBillFilters } from "@/lib/bill-filters";
@@ -6,8 +6,7 @@ import { describeRange } from "@/lib/reports";
 import { MOCK_BILLS } from "@/lib/mock/bills";
 import { Card } from "@/components/ui/Card";
 import { SectionTitle } from "@/components/ui/SectionTitle";
-import { BillFilterBar } from "@/components/billing/BillFilterBar";
-import { ExportPreview } from "@/components/billing/ExportPreview";
+import { BillExportView } from "@/components/billing/BillExportView";
 import { StaticDataNotice } from "@/components/billing/StaticDataNotice";
 
 export default async function BillExportPage({ searchParams }: PageProps<"/sales/export">) {
@@ -27,33 +26,20 @@ export default async function BillExportPage({ searchParams }: PageProps<"/sales
   const filters = parseBillFilters(await searchParams);
 
   return (
-    <div>
+    <div className="space-y-4">
       <StaticDataNotice />
 
-      <div className="mb-4 flex items-start gap-2 rounded-[10px] border border-border bg-surface px-[15px] py-[11px]">
-        <Info size={15} className="mt-0.5 shrink-0 text-accent" />
-        <p className="text-[12.5px] text-text-muted">
-          The export takes <strong className="text-text">exactly the rows the filters below select</strong> — the same
-          set the register shows. Dates are written in Bikram Sambat, so the file matches what an accountant or the IRD
-          expects without anyone converting by hand.
-        </p>
-      </div>
-
-      <BillFilterBar basePath="/sales/export" filters={filters} showVehicle />
+      <BillExportView
+        initialFilters={filters}
+        basePath="/sales/export"
+        bills={MOCK_BILLS}
+        rangeLabel={describeRange(filters.range)}
+      />
 
       <Card>
-        <SectionTitle
-          icon={Download}
-          title="Bill Export"
-          subtitle={`${describeRange(filters.range)} · ${MOCK_BILLS.length} rows selected`}
-        />
-        <ExportPreview bills={MOCK_BILLS} rangeLabel={describeRange(filters.range)} />
-      </Card>
-
-      <Card className="mt-4">
         <SectionTitle icon={FileSpreadsheet} title="Columns" subtitle="What each row of the file contains" />
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] border-collapse text-left">
+          <table className="w-full min-w-130 border-collapse text-left">
             <tbody>
               {[
                 ["Receipt No", "Gap-free, per station"],

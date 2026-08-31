@@ -46,7 +46,7 @@ const mapSale = (s: any): SerializedSale => {
       hour12: true,
     }),
     formattedDateBS: d.toISOString().slice(0, 10),
-    customerName: s.customer?.name ?? null,
+    customerName: s.customer?.name ?? s.buyerName ?? null,
     customerId: s.customerId ?? null,
     soldByName: s.soldBy?.name ?? "Attendant",
     tankId: s.tankId,
@@ -64,7 +64,8 @@ export async function getSalesPageData(_stationId?: string) {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [tanks, customers, recentSalesRaw, todayAgg] = await Promise.all([
+  const [station, tanks, customers, recentSalesRaw, todayAgg] = await Promise.all([
+    tenantDb.station.findFirst({ where: { id: stationId }, select: { name: true } }),
     tenantDb.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
     tenantDb.customer.findMany({
       where: { stationId, active: true },
@@ -90,6 +91,7 @@ export async function getSalesPageData(_stationId?: string) {
   const sales = recentSalesRaw.map(mapSale);
 
   return {
+    stationName: station?.name ?? "Station",
     tanks: tanks.map((t) => ({
       id: t.id,
       fuel: t.fuel,

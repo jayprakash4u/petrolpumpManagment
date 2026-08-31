@@ -6,7 +6,7 @@ export default async function ApprovalsLayout({ children }: { children: ReactNod
   const user = await requireUser();
 
   return (
-    <DashboardShell title="User Management Approvals" userName={user.name} userRole={user.role}>
+    <DashboardShell title="User Management Approvals" userName={user.name} userRole={user.role} stationName={user.station.name}>
       {children}
     </DashboardShell>
   );

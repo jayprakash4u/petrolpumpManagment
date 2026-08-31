@@ -487,6 +487,7 @@ export function SalesHubView({
         <BillDetailsModal
           sale={selectedSale}
           canVoid={canVoid}
+          stationName={initialData.stationName}
           onClose={() => setSelectedSale(null)}
           onSaleVoided={handleSaleVoided}
         />

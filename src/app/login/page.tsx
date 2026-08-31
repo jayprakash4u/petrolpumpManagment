@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/dal";
 import { normalizeSlug } from "@/lib/tenant";
 import { LoginForm } from "./LoginForm";
+import { BrandPanel } from "./BrandPanel";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const user = await getCurrentUser();
@@ -14,8 +15,12 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const raw = Array.isArray(params.station) ? params.station[0] : params.station;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-4">
-      <LoginForm defaultStation={raw ? normalizeSlug(raw) : ""} />
+    <main className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      <BrandPanel />
+
+      <div className="flex items-center justify-center bg-bg px-4 py-12 lg:px-12">
+        <LoginForm defaultStation={raw ? normalizeSlug(raw) : ""} />
+      </div>
     </main>
   );
 }
