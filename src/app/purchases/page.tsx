@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { requireUser } from "@/lib/dal";
+import { requireTenantDb } from "@/lib/tenant-db";
 import { Card } from "@/components/ui/Card";
 import { SectionTitle } from "@/components/ui/SectionTitle";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -30,6 +31,44 @@ import { Badge } from "@/components/ui/Badge";
 
 export default async function PurchaseOverviewPage() {
   await requireUser();
+  const { prisma: tenantDb, stationId } = await requireTenantDb();
+
+  const dbPurchases = await tenantDb.purchase.findMany({
+    where: { stationId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: {
+      recordedBy: { select: { name: true } },
+    },
+  });
+
+  const liveFuelPurchases =
+    dbPurchases.length > 0
+      ? dbPurchases.map((p) => {
+          const d = new Date(p.createdAt);
+          const liters = Number(p.liters);
+          const totalCost = Number(p.totalCost);
+          return {
+            id: p.id,
+            dateBS: d.toISOString().slice(0, 10),
+            invoiceNo: p.invoiceNo || `NOC-${p.id.slice(-5).toUpperCase()}`,
+            tankerNo: "NOC Tanker",
+            tankName:
+              p.fuel === "PETROL"
+                ? "Underground Tank 1 (Petrol)"
+                : p.fuel === "DIESEL"
+                  ? "Underground Tank 2 (Diesel)"
+                  : "Bank 3 (CNG)",
+            litresDelivered: liters,
+            totalAmountNpr: totalCost,
+          };
+        })
+      : MOCK_FUEL_PURCHASES;
+
+  const totalFuelProcurement = liveFuelPurchases.reduce(
+    (sum, f) => sum + f.totalAmountNpr,
+    0
+  );
 
   const lowStockCount = MOCK_INVENTORY_ITEMS.filter((i) => i.stockInHand <= i.reorderLevel).length;
 
@@ -41,7 +80,7 @@ export default async function PurchaseOverviewPage() {
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Fuel Procurement (Month)"
-          value={fmtRs(MOCK_PURCHASE_TOTALS.totalFuelProcurementNpr)}
+          value={fmtRs(totalFuelProcurement)}
           icon={Truck}
           tone="accent"
         />
@@ -201,7 +240,7 @@ export default async function PurchaseOverviewPage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {MOCK_FUEL_PURCHASES.map((f) => (
+            {liveFuelPurchases.map((f) => (
               <div key={f.id} className="flex items-center justify-between rounded-lg border border-border bg-bg p-3">
                 <div>
                   <div className="font-display text-[13.5px] font-semibold text-text">{f.tankName}</div>

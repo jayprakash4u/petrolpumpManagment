@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getMasterDb, getTenantDb, provisionTenantDatabase, invalidateTenantCache } from "@/lib/tenant-db";
+import { runMigrationsForTenant, runPendingForAllTenants } from "@/lib/migrations/runner";
 import { requirePlatformAdmin } from "@/lib/platform-dal";
 import { createAdminSession, destroyAdminSession } from "@/lib/platform-session";
 import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
@@ -612,5 +613,83 @@ export async function updateStationStaffProfileAdminAction(
     console.error("updateStationStaffProfileAdminAction failed", err);
     return { error: "Failed to update staff details. Please try again." };
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Super Admin: Tenant database migrations
+ *
+ * The admin panel is for visibility and controlled recovery, not the
+ * normal mechanism — a real deploy runs `npm run db:migrate:tenants`
+ * (scripts/migrate-tenants.ts) as its own pipeline step. These two actions
+ * exist for the "Retry" on one failed tenant and the explicit, secondary
+ * "Run Pending Migrations" emergency path.
+ * ------------------------------------------------------------------ */
+
+export interface MigrationRunState {
+  error?: string;
+  message?: string;
+}
+
+export async function retryTenantMigrationAction(
+  _prev: MigrationRunState,
+  formData: FormData
+): Promise<MigrationRunState> {
+  const admin = await requirePlatformAdmin();
+  const slug = String(formData.get("slug") ?? "").trim();
+  if (!slug) return { error: "Missing station." };
+
+  const result = await runMigrationsForTenant(slug);
+
+  await getMasterDb().platformAuditLog.create({
+    data: {
+      actorId: admin.id,
+      action: "TENANT_MIGRATION_RETRY",
+      entityType: "Tenant",
+      entityId: slug,
+      metadata: JSON.stringify(result),
+    },
+  });
+
+  revalidatePath("/admin/settings/database");
+
+  if (result.status === "failed") return { error: `Migration failed for ${slug}: ${result.error}` };
+  return {
+    message:
+      result.status === "up-to-date"
+        ? `${slug} is already up to date.`
+        : `${slug} migrated: applied ${result.appliedIds.join(", ")}.`,
+  };
+}
+
+export async function runPendingMigrationsAction(
+  _prev: MigrationRunState,
+  _formData: FormData
+): Promise<MigrationRunState> {
+  const admin = await requirePlatformAdmin();
+  const results = await runPendingForAllTenants();
+
+  await getMasterDb().platformAuditLog.create({
+    data: {
+      actorId: admin.id,
+      action: "TENANT_MIGRATIONS_RUN_ALL",
+      entityType: "Tenant",
+      entityId: "ALL",
+      metadata: JSON.stringify(results),
+    },
+  });
+
+  revalidatePath("/admin/settings/database");
+
+  const failed = results.filter((r) => r.status === "failed");
+  if (failed.length > 0) {
+    return { error: `${failed.length} of ${results.length} tenant(s) failed: ${failed.map((f) => f.slug).join(", ")}.` };
+  }
+  const migrated = results.filter((r) => r.status === "migrated").length;
+  return {
+    message:
+      migrated > 0
+        ? `${migrated} tenant(s) migrated, ${results.length - migrated} already up to date.`
+        : "Every tenant is already up to date.",
+  };
 }
 

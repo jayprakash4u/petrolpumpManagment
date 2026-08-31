@@ -72,13 +72,14 @@ function ExpandableRow({ item, activeHref }: { item: NavItem; activeHref: string
       </summary>
 
       <div className="mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-border/80 pl-2">
-        {item.children!.map((child) =>
-          child.enabled ? (
-            <LinkRow key={child.href} item={child} activeHref={activeHref} inset />
+        {item.children!.map((child) => {
+          const childKey = `${item.href}-${child.href}-${child.label}`;
+          return child.enabled ? (
+            <LinkRow key={childKey} item={child} activeHref={activeHref} inset />
           ) : (
-            <DisabledRow key={child.href} item={child} inset />
-          )
-        )}
+            <DisabledRow key={childKey} item={child} inset />
+          );
+        })}
       </div>
     </details>
   );
@@ -115,9 +116,10 @@ export function SidebarContent({
             </div>
 
             {section.items.map((item) => {
-              if (item.children) return <ExpandableRow key={item.href} item={item} activeHref={activeHref} />;
-              if (!item.enabled) return <DisabledRow key={item.href} item={item} />;
-              return <LinkRow key={item.href} item={item} activeHref={activeHref} />;
+              const itemKey = `${section.label}-${item.href}-${item.label}`;
+              if (item.children) return <ExpandableRow key={itemKey} item={item} activeHref={activeHref} />;
+              if (!item.enabled) return <DisabledRow key={itemKey} item={item} />;
+              return <LinkRow key={itemKey} item={item} activeHref={activeHref} />;
             })}
           </div>
         ))}

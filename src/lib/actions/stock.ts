@@ -3,8 +3,7 @@
 import * as z from "zod";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/dal";
+import { requireTenantDb } from "@/lib/tenant-db";
 import { can, type Role, type FuelType } from "@/lib/permissions";
 import { checkDelivery, checkRate, rateChangePercent, ullage, costPerLiter } from "@/lib/stock-math";
 import { fmtRs, fmtL, fmtRate } from "@/lib/money";
@@ -53,7 +52,7 @@ const RateSchema = z.object({
 });
 
 export async function updateFuelRateAction(_prev: RateFormState, formData: FormData): Promise<RateFormState> {
-  const user = await requireUser();
+  const { prisma: tenantDb, stationId, user } = await requireTenantDb();
   if (!can(user.role as Role, "editFuelRate")) {
     return { error: "Only an owner or manager can change fuel rates." };
   }
@@ -72,8 +71,8 @@ export async function updateFuelRateAction(_prev: RateFormState, formData: FormD
   if (!newRate) return { error: "Enter a valid rate." };
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const tank = await tx.tank.findFirst({ where: { id: parsed.data.tankId, stationId: user.stationId } });
+    const result = await tenantDb.$transaction(async (tx) => {
+      const tank = await tx.tank.findFirst({ where: { id: parsed.data.tankId, stationId: stationId } });
       if (!tank) throw new StockError("That fuel isn't available at this station.");
 
       if (!tank.ratePerL.equals(new D(parsed.data.expectedRate))) {
@@ -168,7 +167,7 @@ const DeliverySchema = z.object({
 });
 
 export async function recordDeliveryAction(_prev: DeliveryFormState, formData: FormData): Promise<DeliveryFormState> {
-  const user = await requireUser();
+  const { prisma: tenantDb, stationId, user } = await requireTenantDb();
   if (!can(user.role as Role, "recordPurchase")) {
     return { error: "Only an owner or manager can record a delivery." };
   }
@@ -190,8 +189,8 @@ export async function recordDeliveryAction(_prev: DeliveryFormState, formData: F
   if (!totalCost || totalCost.isNegative()) return { error: "Enter a valid invoice total." };
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const tank = await tx.tank.findFirst({ where: { id: parsed.data.tankId, stationId: user.stationId } });
+    const result = await tenantDb.$transaction(async (tx) => {
+      const tank = await tx.tank.findFirst({ where: { id: parsed.data.tankId, stationId } });
       if (!tank) throw new StockError("That fuel isn't available at this station.");
 
       const problem = checkDelivery(liters, tank.capacityL, tank.levelL);
@@ -268,6 +267,8 @@ export async function recordDeliveryAction(_prev: DeliveryFormState, formData: F
     revalidatePath("/stock");
     revalidatePath("/sales");
     revalidatePath("/dashboard");
+    revalidatePath("/purchases");
+    revalidatePath("/purchases/fuel");
     return {
       message: `${result.liters} of ${result.fuel} received for ${result.cost}. Tank now holds ${result.levelAfter}.`,
     };

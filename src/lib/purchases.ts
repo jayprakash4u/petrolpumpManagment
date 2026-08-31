@@ -3,13 +3,13 @@ import type { FuelType } from "@/lib/permissions";
 export interface Supplier {
   id: string;
   name: string;
-  category: "Fuel Refinery" | "Lubricants & Oils" | "Spares & Equipment" | "Utilities & Govt";
+  category: "Fuel Refinery" | "Lubricants & Oils" | "Spares & Equipment" | "Utilities & Govt" | (string & {});
   panVatNo: string;
   contactPerson: string;
   phone: string;
   email?: string;
   address: string;
-  paymentTerms: "Advance / Pre-paid" | "Net 15 Days" | "Net 30 Days" | "Immediate Cash";
+  paymentTerms: "Advance / Pre-paid" | "Net 15 Days" | "Net 30 Days" | "Immediate Cash" | (string & {});
   balanceDueNpr: number;
   totalPurchasedNpr: number;
   active: boolean;
@@ -44,8 +44,8 @@ export interface InventoryItem {
   code: string;
   name: string;
   brand: string;
-  category: "Engine Oil" | "Gear & Brake Oil" | "Coolant & Additive" | "Consumables & Spares";
-  unit: "Litre" | "Can (1L)" | "Can (5L)" | "Drum (208L)" | "Pcs" | "Bottle";
+  category: "Engine Oil" | "Gear & Brake Oil" | "Coolant & Additive" | "Consumables & Spares" | (string & {});
+  unit: "Litre" | "Can (1L)" | "Can (5L)" | "Drum (208L)" | "Pcs" | "Bottle" | (string & {});
   stockInHand: number;
   reorderLevel: number;
   costPriceNpr: number;
@@ -66,7 +66,7 @@ export interface PurchaseReturn {
   quantity: number;
   unitPriceNpr: number;
   totalReturnAmountNpr: number;
-  reason: "Damaged Packaging / Seal" | "Off-Spec Density" | "Excess Shipment" | "Expired Batch";
+  reason: "Damaged Packaging / Seal" | "Off-Spec Density" | "Excess Shipment" | "Expired Batch" | (string & {});
   status: "Approved & Adjusted" | "Pending Vendor Credit";
   approvedByName: string;
 }
@@ -75,10 +75,10 @@ export interface StationExpense {
   id: string;
   voucherNo: string;
   dateBS: string;
-  category: "Electricity & Utilities" | "Generator Diesel" | "Station Maintenance" | "Staff Meals & Tea" | "Municipal & Taxes" | "Stationery & Audit";
+  category: "Electricity & Utilities" | "Generator Diesel" | "Station Maintenance" | "Staff Meals & Tea" | "Municipal & Taxes" | "Stationery & Audit" | (string & {});
   description: string;
   amountNpr: number;
-  paymentMode: "Cash Till" | "Bank Transfer" | "Fonepay QR";
+  paymentMode: "Cash Till" | "Bank Transfer" | "Fonepay QR" | (string & {});
   recipientName: string;
   approvedByName: string;
   receiptAttached: boolean;
@@ -88,7 +88,7 @@ export interface FixedAsset {
   id: string;
   assetTag: string;
   name: string;
-  category: "Dispensers & Pumps" | "Storage Tanks" | "Power & Generator" | "Security & POS IT" | "Canopy & Civil";
+  category: "Dispensers & Pumps" | "Storage Tanks" | "Power & Generator" | "Security & POS IT" | "Canopy & Civil" | (string & {});
   brandModel: string;
   serialNo: string;
   purchaseDateBS: string;

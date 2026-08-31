@@ -589,15 +589,8 @@ export const NAV: NavSection[] = [
     items: [
       {
         href: "/reports",
-        label: "Sales Reports",
+        label: "Station Reports",
         icon: BarChart3,
-        enabled: true,
-        permission: "viewReports",
-      },
-      {
-        href: "/reports",
-        label: "Fuel Reports",
-        icon: Fuel,
         enabled: true,
         permission: "viewReports",
       },
@@ -612,13 +605,6 @@ export const NAV: NavSection[] = [
         href: "/reports/ird/stock",
         label: "Stock Reports",
         icon: Boxes,
-        enabled: true,
-        permission: "viewReports",
-      },
-      {
-        href: "/reports",
-        label: "Management Reports",
-        icon: BarChart3,
         enabled: true,
         permission: "viewReports",
       },

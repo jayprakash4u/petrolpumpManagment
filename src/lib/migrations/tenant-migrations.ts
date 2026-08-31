@@ -1,8 +1,34 @@
 /**
- * SQL Server DDL script for initializing tenant station databases.
- * Used during automated Super Admin station provisioning.
+ * The one ordered, versioned source of truth for what a tenant station
+ * database's schema should look like.
+ *
+ * A schema change is: add the field to `prisma/schema.prisma` (so the
+ * generated Prisma Client knows about it) *and* append one new migration
+ * here (so every tenant database — existing and future — actually gets it).
+ * There is no second place to remember: provisioning a brand-new station
+ * (`provisionTenantDatabase` in tenant-db.ts) runs these same migrations in
+ * order rather than executing a separately hand-maintained DDL snapshot, so
+ * a new station can never end up missing a column an existing one has.
+ *
+ * Each migration's `sql` is split on the same `";\n\n"` convention the
+ * provisioner already used, and run as a sequence of individual statements
+ * inside one transaction (see runner.ts). Every `CREATE TABLE` / `ALTER
+ * TABLE` here is guarded with `IF NOT EXISTS`, so a migration is safe to
+ * apply to a database that already has its effect — that's what lets
+ * `001_baseline` double as "build a brand-new database from nothing" *and*
+ * "no-op against an existing one" with the same statements.
  */
-export const TENANT_DB_SCHEMA_DDL = `
+export interface TenantMigration {
+  id: string;
+  description: string;
+  sql: string;
+}
+
+export const TENANT_MIGRATIONS: TenantMigration[] = [
+  {
+    id: "001_baseline",
+    description: "Core station schema: Station, User, Session, Tank, FuelRateHistory, Customer, Sale, Purchase, CustomerPayment, Shift, AuditLog, and the migration ledger itself.",
+    sql: `
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Station')
 BEGIN
     CREATE TABLE [dbo].[Station] (
@@ -202,4 +228,24 @@ BEGIN
     CREATE INDEX [IX_AuditLog_stationId_createdAt] ON [dbo].[AuditLog]([stationId], [createdAt]);
     CREATE INDEX [IX_AuditLog_entityType_entityId] ON [dbo].[AuditLog]([entityType], [entityId]);
 END;
-`;
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '_schema_migrations')
+BEGIN
+    CREATE TABLE [dbo].[_schema_migrations] (
+        [id] NVARCHAR(200) NOT NULL PRIMARY KEY,
+        [appliedAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+END;
+`,
+  },
+  {
+    id: "002_buyer_name",
+    description: "Sale.buyerName — free-text buyer name captured at point of sale, independent of a linked Customer record.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Sale' AND COLUMN_NAME = 'buyerName')
+BEGIN
+    ALTER TABLE [dbo].[Sale] ADD [buyerName] NVARCHAR(1000) NULL;
+END;
+`,
+  },
+];

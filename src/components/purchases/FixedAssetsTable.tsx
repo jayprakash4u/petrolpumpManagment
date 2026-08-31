@@ -1,22 +1,46 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, X, Warehouse, CheckCircle2, ShieldCheck, Wrench, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, X, Warehouse, CheckCircle2, ShieldCheck, Wrench, Check, Search, Filter } from "lucide-react";
 import type { FixedAsset } from "@/lib/purchases";
 import { fmtRs } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 
+const STORAGE_KEY = "fsm_fixed_assets";
+
 export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
   const [list, setList] = useState<FixedAsset[]>(assets);
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setList(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const saveList = (updated: FixedAsset[]) => {
+    setList(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+  };
 
   // Form state
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
-  const [category, setCategory] = useState<FixedAsset["category"]>("Dispensers & Pumps");
+  const [category, setCategory] = useState<string>("Dispensers & Pumps");
+  const [customCategory, setCustomCategory] = useState("");
   const [brandModel, setBrandModel] = useState("");
   const [serialNo, setSerialNo] = useState("");
   const [dateBS, setDateBS] = useState("2083-05-03");
@@ -26,45 +50,113 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalCategory = category === "Other" ? (customCategory.trim() || "Station Equipment") : category;
+
     const newAsset: FixedAsset = {
       id: `ast-${Date.now()}`,
-      assetTag: tag || `AST-CAP-${String(list.length + 1).padStart(2, "0")}`,
-      name,
-      category,
-      brandModel,
-      serialNo,
+      assetTag: tag.trim() || `AST-CAP-${String(list.length + 1).padStart(2, "0")}`,
+      name: name.trim(),
+      category: finalCategory,
+      brandModel: brandModel.trim(),
+      serialNo: serialNo.trim(),
       purchaseDateBS: dateBS,
       purchaseCostNpr: parseFloat(cost) || 0,
-      vendorName: vendor,
+      vendorName: vendor.trim(),
       currentCondition: "Optimal",
       warrantyExpiryBS: "2088-05-03",
-      location,
+      location: location.trim(),
     };
 
-    setList([newAsset, ...list]);
+    saveList([newAsset, ...list]);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
       setModalOpen(false);
       setName("");
+      setTag("");
       setBrandModel("");
       setSerialNo("");
+      setCustomCategory("");
     }, 1000);
   };
 
-  const totalCapValue = list.reduce((sum, a) => sum + a.purchaseCostNpr, 0);
+  const categories = Array.from(
+    new Set([
+      "Dispensers & Pumps",
+      "Storage Tanks",
+      "Power & Generator",
+      "Security & POS IT",
+      "Canopy & Civil",
+      ...list.map((a) => a.category),
+    ])
+  );
+
+  const filtered = list.filter((a) => {
+    if (categoryFilter !== "ALL" && a.category !== categoryFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchName = a.name.toLowerCase().includes(q);
+      const matchTag = a.assetTag.toLowerCase().includes(q);
+      const matchCategory = a.category.toLowerCase().includes(q);
+      const matchBrand = a.brandModel.toLowerCase().includes(q);
+      const matchSerial = a.serialNo.toLowerCase().includes(q);
+      const matchLoc = a.location.toLowerCase().includes(q);
+      if (!matchName && !matchTag && !matchCategory && !matchBrand && !matchSerial && !matchLoc) return false;
+    }
+    return true;
+  });
+
+  const totalCapValue = filtered.reduce((sum, a) => sum + a.purchaseCostNpr, 0);
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-bold text-text">Fixed Assets & Infrastructure</h3>
-          <p className="text-xs text-text-muted">Capital machinery, dispensers, generator sets, and underground tanks</p>
+      {/* Search and Filter Bar */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search Box */}
+          <div className="relative w-[240px] sm:w-[280px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <Input
+              placeholder="Search asset, tag, brand, serial..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="py-1.5 pl-8 text-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted">
+            <Filter size={13} />
+            <span>CATEGORY:</span>
+          </div>
+
+          <div className="w-[190px]">
+            <Select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="py-1.5 text-xs"
+            >
+              <option value="ALL">All Categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-text-muted">
-            Total Capital Value: <strong className="font-data text-accent">{fmtRs(totalCapValue)}</strong>
+            Valuation: <strong className="font-data text-accent">{fmtRs(totalCapValue)}</strong>
           </span>
           <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
             <Plus size={15} />
@@ -88,44 +180,55 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
             </tr>
           </thead>
           <tbody>
-            {list.map((a) => (
-              <tr key={a.id} className="border-b border-border/60 transition-colors hover:bg-surface-hi/40">
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-hi text-accent">
-                      <Warehouse size={15} />
-                    </div>
-                    <div>
-                      <div className="font-display text-[13px] font-semibold text-text">{a.name}</div>
-                      <div className="font-data text-[11px] text-text-muted">{a.assetTag} · {a.location}</div>
-                    </div>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-10 text-center text-xs text-text-muted">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Warehouse size={24} className="text-text-muted/40" />
+                    <span>No assets match "{searchQuery || categoryFilter}".</span>
                   </div>
                 </td>
-
-                <td className="px-3 py-3">
-                  <Badge tone="muted">{a.category}</Badge>
-                </td>
-
-                <td className="px-3 py-3 text-xs font-medium text-text">{a.brandModel}</td>
-
-                <td className="px-3 py-3 font-data text-[12px] text-text-muted">{a.serialNo}</td>
-
-                <td className="px-3 py-3 font-data text-[12.5px] text-text-muted">{a.purchaseDateBS}</td>
-
-                <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">
-                  {fmtRs(a.purchaseCostNpr)}
-                </td>
-
-                <td className="px-3 py-3 font-data text-[12px] text-text-muted">{a.warrantyExpiryBS}</td>
-
-                <td className="px-3 py-3 text-center">
-                  <Badge tone={a.currentCondition === "Optimal" ? "success" : "accent"}>
-                    <ShieldCheck size={10} />
-                    {a.currentCondition.toUpperCase()}
-                  </Badge>
-                </td>
               </tr>
-            ))}
+            ) : (
+              filtered.map((a) => (
+                <tr key={a.id} className="border-b border-border/60 transition-colors hover:bg-surface-hi/40">
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-hi text-accent">
+                        <Warehouse size={15} />
+                      </div>
+                      <div>
+                        <div className="font-display text-[13px] font-semibold text-text">{a.name}</div>
+                        <div className="font-data text-[11px] text-text-muted">{a.assetTag} · {a.location}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3">
+                    <Badge tone="muted">{a.category}</Badge>
+                  </td>
+
+                  <td className="px-3 py-3 text-xs font-medium text-text">{a.brandModel}</td>
+
+                  <td className="px-3 py-3 font-data text-[12px] text-text-muted">{a.serialNo}</td>
+
+                  <td className="px-3 py-3 font-data text-[12.5px] text-text-muted">{a.purchaseDateBS}</td>
+
+                  <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">
+                    {fmtRs(a.purchaseCostNpr)}
+                  </td>
+
+                  <td className="px-3 py-3 font-data text-[12px] text-text-muted">{a.warrantyExpiryBS}</td>
+
+                  <td className="px-3 py-3 text-center">
+                    <Badge tone={a.currentCondition === "Optimal" ? "success" : "accent"}>
+                      <CheckCircle2 size={10} />
+                      {a.currentCondition}
+                    </Badge>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -176,13 +279,14 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
                   <Field label="Category">
                     <Select
                       value={category}
-                      onChange={(e) => setCategory(e.target.value as FixedAsset["category"])}
+                      onChange={(e) => setCategory(e.target.value)}
                     >
                       <option value="Dispensers & Pumps">Dispensers & Pumps</option>
                       <option value="Storage Tanks">Storage Tanks</option>
                       <option value="Power & Generator">Power & Generator</option>
                       <option value="Security & POS IT">Security & POS IT</option>
                       <option value="Canopy & Civil">Canopy & Civil</option>
+                      <option value="Other">Other (Specify)</option>
                     </Select>
                   </Field>
                   <Field label="Asset Tag / ID">
@@ -193,6 +297,20 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
                     />
                   </Field>
                 </div>
+
+                {category === "Other" && (
+                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
+                    <Field label="Custom Asset Category">
+                      <Input
+                        placeholder="e.g. Air Compressor, CCTV System, Fire Extinguishers"
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                    </Field>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Brand / Model">

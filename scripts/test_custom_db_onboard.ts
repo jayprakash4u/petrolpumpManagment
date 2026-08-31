@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { TENANT_DB_SCHEMA_DDL } from "../src/lib/station-schema-ddl";
+import { applyMigrations } from "../src/lib/migrations/apply";
 
 const masterUrl = "sqlserver://localhost:1435;database=FuelStationMasterDB;user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;";
 const masterPrisma = new PrismaClient({ datasources: { db: { url: masterUrl } } });
@@ -21,13 +21,10 @@ async function main() {
   const customPrismaUrl = `sqlserver://localhost:1435;database=${customDbName};user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;`;
   const customPrisma = new PrismaClient({ datasources: { db: { url: customPrismaUrl } } });
 
-  // Apply DDL
-  const ddlStatements = TENANT_DB_SCHEMA_DDL.split(";\n\n")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  for (const statement of ddlStatements) {
-    await customPrisma.$executeRawUnsafe(statement);
+  // Apply migrations
+  const migrationResult = await applyMigrations(customPrisma);
+  if (migrationResult.status === "failed") {
+    throw new Error(`Migration failed: ${migrationResult.error}`);
   }
 
   // Register in Master DB

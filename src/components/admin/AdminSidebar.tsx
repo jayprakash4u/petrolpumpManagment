@@ -155,10 +155,11 @@ export function AdminSidebar({
                 const isActive = isExact || isChildActive;
                 const Icon = item.icon;
 
+                const itemKey = `${section.group}-${item.href}-${item.label}`;
                 if (!item.children) {
                   return (
                     <Link
-                      key={item.href}
+                      key={itemKey}
                       href={item.href}
                       className={clsx(
                         "flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors",
@@ -181,7 +182,7 @@ export function AdminSidebar({
 
                 return (
                   <details
-                    key={item.href}
+                    key={itemKey}
                     open={isActive}
                     className="group space-y-0.5"
                   >
@@ -213,9 +214,10 @@ export function AdminSidebar({
                     <div className="ml-4 pl-2.5 border-l border-border/60 flex flex-col gap-0.5 py-1">
                       {item.children.map((child) => {
                         const childActive = pathname === child.href;
+                        const childKey = `${item.href}-${child.href}-${child.label}`;
                         return (
                           <Link
-                            key={child.href}
+                            key={childKey}
                             href={child.href}
                             className={clsx(
                               "rounded-lg px-2.5 py-1.5 text-[12px] transition-colors truncate",

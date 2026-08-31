@@ -1,69 +1,167 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, X, Undo2, CheckCircle2, ShieldCheck, FileText, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, X, Undo2, CheckCircle2, ShieldCheck, FileText, Check, Search, Filter } from "lucide-react";
 import type { PurchaseReturn } from "@/lib/purchases";
 import { fmtRs } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 
+const STORAGE_KEY = "fsm_purchase_returns";
+
 export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] }) {
   const [list, setList] = useState<PurchaseReturn[]>(returns);
+  const [reasonFilter, setReasonFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setList(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const saveList = (updated: PurchaseReturn[]) => {
+    setList(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+  };
 
   // Form state
   const [invoiceNo, setInvoiceNo] = useState("");
   const [supplier, setSupplier] = useState("Gulf Lubricants Nepal Ltd.");
+  const [customSupplier, setCustomSupplier] = useState("");
   const [itemDescription, setItemDescription] = useState("");
   const [qty, setQty] = useState("5");
   const [unitPrice, setUnitPrice] = useState("520");
-  const [reason, setReason] = useState<PurchaseReturn["reason"]>("Damaged Packaging / Seal");
+  const [reason, setReason] = useState<string>("Damaged Packaging / Seal");
+  const [customReason, setCustomReason] = useState("");
 
   const totalReturnVal = (parseFloat(qty) || 0) * (parseFloat(unitPrice) || 0);
 
   const handleRaise = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalSupplier = supplier === "Other" ? (customSupplier.trim() || "Supplier") : supplier;
+    const finalReason = reason === "Other" ? (customReason.trim() || "Rejected Goods") : reason;
+
     const newReturn: PurchaseReturn = {
       id: `pr-${Date.now()}`,
       debitNoteNo: `DN-2083-${String(list.length + 1).padStart(3, "0")}`,
-      originalInvoiceNo: invoiceNo,
+      originalInvoiceNo: invoiceNo.trim(),
       dateBS: "2083-05-03",
-      supplierId: "sup-gulf",
-      supplierName: supplier,
-      itemDescription,
+      supplierId: "sup-custom",
+      supplierName: finalSupplier,
+      itemDescription: itemDescription.trim(),
       quantity: parseInt(qty, 10) || 1,
       unitPriceNpr: parseFloat(unitPrice) || 0,
       totalReturnAmountNpr: totalReturnVal,
-      reason,
+      reason: finalReason,
       status: "Approved & Adjusted",
       approvedByName: "Anita Shrestha (Manager)",
     };
 
-    setList([newReturn, ...list]);
+    saveList([newReturn, ...list]);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
       setModalOpen(false);
       setInvoiceNo("");
       setItemDescription("");
+      setCustomSupplier("");
+      setCustomReason("");
     }, 1000);
   };
 
+  const reasons = Array.from(
+    new Set([
+      "Damaged Packaging / Seal",
+      "Off-Spec Density",
+      "Excess Shipment",
+      "Expired Batch",
+      ...list.map((r) => r.reason),
+    ])
+  );
+
+  const filtered = list.filter((r) => {
+    if (reasonFilter !== "ALL" && r.reason !== reasonFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchDebit = r.debitNoteNo.toLowerCase().includes(q);
+      const matchInvoice = r.originalInvoiceNo.toLowerCase().includes(q);
+      const matchSupplier = r.supplierName.toLowerCase().includes(q);
+      const matchItem = r.itemDescription.toLowerCase().includes(q);
+      const matchReason = r.reason.toLowerCase().includes(q);
+      if (!matchDebit && !matchInvoice && !matchSupplier && !matchItem && !matchReason) return false;
+    }
+    return true;
+  });
+
+  const totalCreditSum = filtered.reduce((sum, r) => sum + r.totalReturnAmountNpr, 0);
+
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-bold text-text">Purchase Returns & Debit Notes</h3>
-          <p className="text-xs text-text-muted">
-            Formal supplier returns for damaged packaging, seal leaks, or rejected off-spec deliveries
-          </p>
+      {/* Search and Action Bar */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search Box */}
+          <div className="relative w-[240px] sm:w-[280px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <Input
+              placeholder="Search debit note, invoice, item, supplier..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="py-1.5 pl-8 text-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted">
+            <Filter size={13} />
+            <span>REASON:</span>
+          </div>
+
+          <div className="w-[190px]">
+            <Select
+              value={reasonFilter}
+              onChange={(e) => setReasonFilter(e.target.value)}
+              className="py-1.5 text-xs"
+            >
+              <option value="ALL">All Reasons</option>
+              {reasons.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
-        <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
-          <Plus size={15} />
-          Issue Debit Note
-        </PrimaryButton>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-text-muted">
+            Total Claimed: <strong className="font-data text-accent">{fmtRs(totalCreditSum)}</strong>
+          </span>
+          <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
+            <Plus size={15} />
+            Issue Debit Note
+          </PrimaryButton>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -81,37 +179,48 @@ export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] })
             </tr>
           </thead>
           <tbody>
-            {list.map((r) => (
-              <tr key={r.id} className="border-b border-border/60 transition-colors hover:bg-surface-hi/40">
-                <td className="px-3 py-3 font-data text-[13px] font-semibold text-accent">
-                  {r.debitNoteNo}
-                </td>
-
-                <td className="px-3 py-3 font-data text-[12.5px] text-text-muted">{r.dateBS}</td>
-
-                <td className="px-3 py-3 text-[13px] font-medium text-text">{r.supplierName}</td>
-
-                <td className="px-3 py-3 font-data text-[12px] text-text-muted">{r.originalInvoiceNo}</td>
-
-                <td className="px-3 py-3">
-                  <div className="text-[12.5px] font-semibold text-text">{r.itemDescription}</div>
-                  <div className="text-[11px] text-error font-medium">{r.reason}</div>
-                </td>
-
-                <td className="px-3 py-3 text-right font-data text-[12.5px] text-text">{r.quantity}</td>
-
-                <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">
-                  {fmtRs(r.totalReturnAmountNpr)}
-                </td>
-
-                <td className="px-3 py-3 text-center">
-                  <Badge tone="success">
-                    <ShieldCheck size={10} />
-                    ADJUSTED
-                  </Badge>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-10 text-center text-xs text-text-muted">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Undo2 size={24} className="text-text-muted/40" />
+                    <span>No purchase returns match "{searchQuery || reasonFilter}".</span>
+                  </div>
                 </td>
               </tr>
-            ))}
+            ) : (
+              filtered.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 transition-colors hover:bg-surface-hi/40">
+                  <td className="px-3 py-3 font-data text-[13px] font-semibold text-accent">
+                    {r.debitNoteNo}
+                  </td>
+
+                  <td className="px-3 py-3 font-data text-[12.5px] text-text-muted">{r.dateBS}</td>
+
+                  <td className="px-3 py-3 text-[13px] font-medium text-text">{r.supplierName}</td>
+
+                  <td className="px-3 py-3 font-data text-[12px] text-text-muted">{r.originalInvoiceNo}</td>
+
+                  <td className="px-3 py-3">
+                    <div className="text-[12.5px] font-semibold text-text">{r.itemDescription}</div>
+                    <div className="text-[11px] text-error font-medium">{r.reason}</div>
+                  </td>
+
+                  <td className="px-3 py-3 text-right font-data text-[12.5px] text-text">{r.quantity}</td>
+
+                  <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">
+                    {fmtRs(r.totalReturnAmountNpr)}
+                  </td>
+
+                  <td className="px-3 py-3 text-center">
+                    <Badge tone="success">
+                      <ShieldCheck size={10} />
+                      ADJUSTED
+                    </Badge>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -119,7 +228,7 @@ export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] })
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
@@ -146,7 +255,7 @@ export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] })
                 </div>
                 <h4 className="font-display text-base font-semibold text-text">Debit Note Issued</h4>
                 <p className="mt-1 text-xs text-text-muted">
-                  Credit adjustment of {fmtRs(totalReturnVal)} raised to {supplier}.
+                  Credit adjustment of {fmtRs(totalReturnVal)} raised to {supplier === "Other" ? customSupplier : supplier}.
                 </p>
               </div>
             ) : (
@@ -166,9 +275,24 @@ export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] })
                       <option value="Castrol India & BP Distributors">Castrol India & BP</option>
                       <option value="Nepal Oil Corporation (NOC)">Nepal Oil Corporation</option>
                       <option value="Himalayan Petroleum Equipment">Himalayan Spares</option>
+                      <option value="Other">Other (Specify)</option>
                     </Select>
                   </Field>
                 </div>
+
+                {supplier === "Other" && (
+                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
+                    <Field label="Custom Supplier Name">
+                      <Input
+                        placeholder="e.g. Servo IOC Distributor, Local Supplier"
+                        value={customSupplier}
+                        onChange={(e) => setCustomSupplier(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                    </Field>
+                  </div>
+                )}
 
                 <Field label="Returned Item & Specification">
                   <Input
@@ -201,14 +325,29 @@ export function PurchaseReturnsTable({ returns }: { returns: PurchaseReturn[] })
                 <Field label="Return Reason">
                   <Select
                     value={reason}
-                    onChange={(e) => setReason(e.target.value as PurchaseReturn["reason"])}
+                    onChange={(e) => setReason(e.target.value)}
                   >
                     <option value="Damaged Packaging / Seal">Damaged Packaging / Seal</option>
                     <option value="Off-Spec Density">Off-Spec Density (Fuel rejected)</option>
                     <option value="Excess Shipment">Excess Shipment</option>
                     <option value="Expired Batch">Expired Batch</option>
+                    <option value="Other">Other (Specify)</option>
                   </Select>
                 </Field>
+
+                {reason === "Other" && (
+                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
+                    <Field label="Custom Return Reason">
+                      <Input
+                        placeholder="e.g. Incorrect viscosity sent, wrong batch code, nozzle defect"
+                        value={customReason}
+                        onChange={(e) => setCustomReason(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                    </Field>
+                  </div>
+                )}
 
                 <div className="rounded-xl border border-accent/30 bg-accent/8 p-3 text-xs text-text-muted">
                   <div className="flex items-center justify-between">

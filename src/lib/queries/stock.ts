@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { requireTenantDb } from "@/lib/tenant-db";
 import { ullage, fillPercent, isLowStock, costPerLiter, marginPerLiter } from "@/lib/stock-math";
 
 const D = Prisma.Decimal;
@@ -10,10 +10,11 @@ const D = Prisma.Decimal;
  * figures (room left, fill %, low-stock flag) computed here in Decimal, so
  * the components stay presentational and the arithmetic stays in one place.
  */
-export async function getStockPageData(stationId: string) {
+export async function getStockPageData(_stationId?: string) {
+  const { prisma: tenantDb, stationId } = await requireTenantDb();
   const [tanks, purchases, rateHistory, soldSinceRefill] = await Promise.all([
-    prisma.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
-    prisma.purchase.findMany({
+    tenantDb.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
+    tenantDb.purchase.findMany({
       where: { stationId },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -28,7 +29,7 @@ export async function getStockPageData(stationId: string) {
         recordedBy: { select: { name: true } },
       },
     }),
-    prisma.fuelRateHistory.findMany({
+    tenantDb.fuelRateHistory.findMany({
       where: { tank: { stationId } },
       orderBy: { changedAt: "desc" },
       take: 10,
@@ -41,7 +42,7 @@ export async function getStockPageData(stationId: string) {
         changedBy: { select: { name: true } },
       },
     }),
-    prisma.sale.groupBy({
+    tenantDb.sale.groupBy({
       by: ["tankId"],
       where: { stationId, voided: false },
       _sum: { liters: true },

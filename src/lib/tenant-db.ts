@@ -1,7 +1,7 @@
 import "server-only";
 import { PrismaClient } from "@prisma/client";
 import { requireSession, requireUser } from "@/lib/dal";
-import { TENANT_DB_SCHEMA_DDL } from "@/lib/station-schema-ddl";
+import { applyMigrations } from "@/lib/migrations/apply";
 
 const SQL_SERVER_HOST = process.env.SQL_SERVER_HOST || "localhost:1435";
 const SQL_SERVER_USER = process.env.SQL_SERVER_USER || "fsm_dev";
@@ -186,13 +186,13 @@ export async function provisionTenantDatabase(input: ProvisionStationInput) {
   const tempTenantClient = new PrismaClient({ datasources: { db: { url: tenantUrl } } });
   
   try {
-    // Split and execute DDL batches
-    const ddlStatements = TENANT_DB_SCHEMA_DDL.split(";\n\n")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    for (const statement of ddlStatements) {
-      await tempTenantClient.$executeRawUnsafe(statement);
+    // Build the new database through the same migration path an existing
+    // tenant upgrades through, rather than a separately hand-maintained DDL
+    // snapshot — the two can no longer drift apart, which is exactly what
+    // let a new station go live missing a column an existing one already had.
+    const migrationResult = await applyMigrations(tempTenantClient);
+    if (migrationResult.status === "failed") {
+      throw new Error(`Tenant schema migration failed: ${migrationResult.error ?? "unknown error"}`);
     }
 
     // 3. Register in Master DB Tenant registry

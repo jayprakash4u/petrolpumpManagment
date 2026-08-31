@@ -282,3 +282,15 @@ model AuditLog {
   @@index([stationId, createdAt])
   @@index([entityType, entityId])
 }
+
+/// The ledger of which tenant-schema migrations (src/lib/migrations/tenant-migrations.ts)
+/// this station's database has applied. Created and written by the migration
+/// runner via raw SQL — declared here mainly so `prisma db push` also
+/// creates it for a fresh local dev database, and so the shape is
+/// documented alongside everything else.
+model SchemaMigration {
+  id        String   @id
+  appliedAt DateTime @default(now())
+
+  @@map("_schema_migrations")
+}

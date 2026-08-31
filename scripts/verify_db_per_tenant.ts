@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { TENANT_DB_SCHEMA_DDL } from "../src/lib/station-schema-ddl";
+import { applyMigrations } from "../src/lib/migrations/apply";
 
 const masterUrl = "sqlserver://localhost:1435;database=FuelStationMasterDB;user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;";
 const shreeUrl = "sqlserver://localhost:1435;database=FuelStation_shree_petroleum;user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;";
@@ -43,14 +43,11 @@ async function main() {
   const birgunjUrl = `sqlserver://localhost:1435;database=${testDbName};user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;`;
   const birgunjPrisma = new PrismaClient({ datasources: { db: { url: birgunjUrl } } });
 
-  const ddlStatements = TENANT_DB_SCHEMA_DDL.split(";\n\n")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  for (const statement of ddlStatements) {
-    await birgunjPrisma.$executeRawUnsafe(statement);
+  const migrationResult = await applyMigrations(birgunjPrisma);
+  if (migrationResult.status === "failed") {
+    throw new Error(`Migration failed: ${migrationResult.error}`);
   }
-  console.log(`   ✅ Applied station schema DDL tables to [${testDbName}]`);
+  console.log(`   ✅ Applied tenant schema migrations to [${testDbName}] (${migrationResult.status})`);
 
   // Register in Master DB
   await masterPrisma.tenant.upsert({
