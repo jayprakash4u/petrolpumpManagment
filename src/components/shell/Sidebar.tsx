@@ -89,17 +89,26 @@ export function SidebarContent({
   activeHref,
   role,
   stationName,
+  logoUrl,
 }: {
   activeHref: string;
   role?: Role | string;
   stationName: string;
+  logoUrl?: string | null;
 }) {
   return (
     <>
       <div className="mb-7 flex items-center gap-2.5 px-2">
-        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-accent">
-          <Fuel size={18} color="#1A1306" />
-        </div>
+        {logoUrl ? (
+          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-hi p-1 shadow-2xs">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoUrl} alt={stationName} className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-accent shadow-2xs">
+            <Fuel size={18} color="#1A1306" />
+          </div>
+        )}
         <div className="min-w-0 font-display text-[15.5px] leading-tight font-bold text-text">
           <div className="truncate" title={stationName}>
             {stationName}
@@ -132,14 +141,16 @@ export function Sidebar({
   activeHref,
   role,
   stationName,
+  logoUrl,
 }: {
   activeHref: string;
   role?: Role | string;
   stationName: string;
+  logoUrl?: string | null;
 }) {
   return (
     <aside className="hidden h-screen w-[268px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px] md:sticky md:top-0 md:flex">
-      <SidebarContent activeHref={activeHref} role={role} stationName={stationName} />
+      <SidebarContent activeHref={activeHref} role={role} stationName={stationName} logoUrl={logoUrl} />
     </aside>
   );
 }

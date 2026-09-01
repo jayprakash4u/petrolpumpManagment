@@ -1,6 +1,7 @@
 "use client";
 
 import { Printer, X } from "lucide-react";
+import { clsx } from "clsx";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
 import { fmtRs, fmtL, fmtRate } from "@/lib/money";
@@ -54,20 +55,34 @@ function toReceiptDTO(sale: PrintableSaleItem, stationName: string): ReceiptDTO 
   };
 }
 
+import type { StationBusinessProfile, StationInvoiceSettings } from "@/lib/invoice-settings";
+
 export function PrintReceiptModal({
   sale,
   stationName,
+  business,
+  settings,
   onClose,
 }: {
   sale: PrintableSaleItem;
   stationName: string;
+  business?: Partial<StationBusinessProfile> | null;
+  settings?: Partial<StationInvoiceSettings> | null;
   onClose: () => void;
 }) {
   const receipt = toReceiptDTO(sale, stationName);
+  const paper = settings?.paperSize || "80MM";
+  const modalMaxWidth =
+    paper === "A4" ? "max-w-3xl" : paper === "A5" ? "max-w-xl" : "max-w-sm";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden">
+      <div
+        className={clsx(
+          "relative w-full rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden",
+          modalMaxWidth
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border bg-surface-hi px-4 py-3">
           <div className="flex items-center gap-2 text-text font-semibold text-[14px]">
@@ -77,15 +92,19 @@ export function PrintReceiptModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-text-muted hover:bg-white/10 hover:text-text"
+            className="rounded-lg p-1 text-text-muted hover:bg-white/10 hover:text-text cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Printable Receipt Body */}
-        <div className="p-4">
-          <TaxInvoice receipt={receipt} />
+        <div className="p-4 max-h-[75vh] overflow-y-auto">
+          <TaxInvoice
+            receipt={receipt}
+            business={business || { name: stationName }}
+            settings={settings}
+          />
         </div>
 
         {/* Footer Actions */}

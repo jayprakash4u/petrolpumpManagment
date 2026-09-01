@@ -10,7 +10,13 @@ export default async function HelpLayout({
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Help & Support" userName={user.name} userRole={user.role} stationName={user.station.name}>
+    <DashboardShell
+      title="Help & Support"
+      userName={user.name}
+      userRole={user.role}
+      stationName={user.station.name}
+      logoUrl={user.station.logoUrl}
+    >
       <SystemSubnav />
       {children}
     </DashboardShell>

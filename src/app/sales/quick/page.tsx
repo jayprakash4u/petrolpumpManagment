@@ -1,10 +1,9 @@
-import { Zap } from "lucide-react";
 import { requireUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { getSalesPageData } from "@/lib/queries/sales";
 import { Card } from "@/components/ui/Card";
-import { SectionTitle } from "@/components/ui/SectionTitle";
 import { QuickSaleForm } from "@/components/billing/QuickSaleForm";
+import { fmtBSDate } from "@/lib/bs-date";
 
 export default async function QuickSalePage() {
   const user = await requireUser();
@@ -19,13 +18,16 @@ export default async function QuickSalePage() {
   }
 
   const data = await getSalesPageData(user.stationId);
+  const todayBS = fmtBSDate(new Date());
 
   return (
-    <div className="mx-auto max-w-[720px]">
-      <Card>
-        <SectionTitle icon={Zap} title="Quick Sale" subtitle="Pick a fuel, enter litres or amount, done" />
-        <QuickSaleForm tanks={data.tanks} />
-      </Card>
+    <div className="mx-auto max-w-2xl animate-fade-in">
+      <QuickSaleForm
+        tanks={data.tanks}
+        invoiceConfig={data.invoiceConfig}
+        invoiceNumber={data.invoiceNumber}
+        todayBS={todayBS}
+      />
     </div>
   );
 }

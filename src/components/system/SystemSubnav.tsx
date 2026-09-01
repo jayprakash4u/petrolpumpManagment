@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Cog,
+  Printer,
   Wrench,
   FilePenLine,
   UserCog,
@@ -15,6 +16,7 @@ import { clsx } from "clsx";
 
 const SYSTEM_TABS = [
   { href: "/settings", label: "Site Settings", icon: Cog },
+  { href: "/settings/invoice", label: "Invoice Template", icon: Printer },
   { href: "/settings/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/settings/corrections", label: "Corrections", icon: FilePenLine },
   { href: "/profile", label: "User Profile", icon: UserCog },

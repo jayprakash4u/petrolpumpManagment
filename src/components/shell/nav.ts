@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Receipt as ReceiptIcon,
+  Printer,
   Fuel,
   Users,
   CreditCard,
@@ -185,13 +186,6 @@ export const NAV: NavSection[] = [
             enabled: true,
             permission: "viewReports",
             soonNote: "Bulk export of invoices and returns for tax and audit",
-          },
-          {
-            href: "/sales/proforma",
-            label: "Quotation / Proforma",
-            icon: FileText,
-            enabled: true,
-            soonNote: "Commercial quotation and proforma generator (non-accounting)",
           },
         ],
       },
@@ -758,6 +752,14 @@ export const NAV: NavSection[] = [
   {
     label: "System",
     items: [
+      {
+        href: "/settings/invoice",
+        label: "Invoice & Logo Studio",
+        icon: Printer,
+        enabled: true,
+        permission: "manageUsers",
+        soonNote: "Upload station logo, configure tax invoice layout, field visibility, and thermal/A4 printing",
+      },
       {
         href: "/settings",
         label: "Site Settings",

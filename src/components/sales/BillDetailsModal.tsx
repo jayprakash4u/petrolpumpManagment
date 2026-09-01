@@ -58,11 +58,15 @@ function toReceiptDTO(sale: SerializedSale, stationName: string): ReceiptDTO {
   };
 }
 
+import type { StationBusinessProfile, StationInvoiceSettings } from "@/lib/invoice-settings";
+
 export function BillDetailsModal({
   sale: initialSale,
   canVoid,
   customers = [],
   stationName,
+  business,
+  settings,
   onClose,
   onSaleVoided,
   onSaleEdited,
@@ -71,6 +75,8 @@ export function BillDetailsModal({
   canVoid: boolean;
   customers?: CustomerOption[];
   stationName: string;
+  business?: Partial<StationBusinessProfile> | null;
+  settings?: Partial<StationInvoiceSettings> | null;
   onClose: () => void;
   onSaleVoided?: (saleId: string) => void;
   onSaleEdited?: (updatedSale: SerializedSale) => void;
@@ -198,9 +204,18 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
     }
   };
 
+  const paper = settings?.paperSize || "80MM";
+  const modalMaxWidth =
+    paper === "A4" ? "max-w-3xl" : paper === "A5" ? "max-w-xl" : "max-w-lg";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden">
+      <div
+        className={clsx(
+          "relative w-full rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden",
+          modalMaxWidth
+        )}
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border bg-surface-hi px-5 py-4">
           <div className="flex items-center gap-2.5">
@@ -355,7 +370,11 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
             /* STANDARD INVOICE DETAILS VIEW */
             <>
               {/* Printable Ticket Box */}
-              <TaxInvoice receipt={toReceiptDTO(sale, stationName)} />
+              <TaxInvoice
+                receipt={toReceiptDTO(sale, stationName)}
+                business={business || { name: stationName }}
+                settings={settings}
+              />
 
               {sale.voided && (
                 <div className="rounded-lg border border-error/30 bg-error/10 p-2.5 text-[11.5px] text-error">

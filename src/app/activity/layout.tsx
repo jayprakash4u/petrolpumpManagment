@@ -10,7 +10,13 @@ export default async function ActivityLayout({
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Activity Log" userName={user.name} userRole={user.role} stationName={user.station.name}>
+    <DashboardShell
+      title="Activity Log"
+      userName={user.name}
+      userRole={user.role}
+      stationName={user.station.name}
+      logoUrl={user.station.logoUrl}
+    >
       <SystemSubnav />
       {children}
     </DashboardShell>

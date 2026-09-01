@@ -11,12 +11,14 @@ export function DashboardShell({
   userName,
   userRole,
   stationName,
+  logoUrl,
   children,
 }: {
   title: string;
   userName: string;
   userRole: Role | string;
   stationName: string;
+  logoUrl?: string | null;
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -27,7 +29,7 @@ export function DashboardShell({
 
   return (
     <div className="flex min-h-screen bg-bg">
-      <Sidebar activeHref={activeHref} role={userRole} stationName={stationName} />
+      <Sidebar activeHref={activeHref} role={userRole} stationName={stationName} logoUrl={logoUrl} />
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setMobileOpen(false)}>
@@ -37,7 +39,7 @@ export function DashboardShell({
             className="flex h-screen w-[268px] flex-col overflow-hidden border-r border-border bg-surface p-[22px_14px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <SidebarContent activeHref={activeHref} role={userRole} stationName={stationName} />
+            <SidebarContent activeHref={activeHref} role={userRole} stationName={stationName} logoUrl={logoUrl} />
           </aside>
         </div>
       )}

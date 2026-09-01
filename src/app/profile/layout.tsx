@@ -10,7 +10,13 @@ export default async function ProfileLayout({
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Profile & Security" userName={user.name} userRole={user.role} stationName={user.station.name}>
+    <DashboardShell
+      title="Profile & Security"
+      userName={user.name}
+      userRole={user.role}
+      stationName={user.station.name}
+      logoUrl={user.station.logoUrl}
+    >
       <SystemSubnav />
       {children}
     </DashboardShell>

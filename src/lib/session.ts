@@ -81,12 +81,25 @@ export async function readSession() {
     if (!session.user.active) return null;
     if (session.user.station.suspendedAt !== null) return null;
 
+    // Attach logoUrl safely from database if available
+    let logoUrl: string | null = null;
+    try {
+      const rows: any[] = await tenantDb.$queryRawUnsafe(
+        `SELECT TOP 1 [logoUrl] FROM [dbo].[Station] WHERE [slug] = '${verified.slug.replace(/'/g, "''")}'`
+      );
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        logoUrl = row.logoUrl ?? row.LOGOURL ?? row.logourl ?? Object.values(row)[0] ?? null;
+      }
+    } catch {}
+    (session.user.station as any).logoUrl = logoUrl;
+
     return {
       sessionId: session.id,
       sessionCreatedAt: session.createdAt,
       userAgent: session.userAgent,
       ipAddress: session.ipAddress,
-      user: session.user,
+      user: session.user as typeof session.user & { station: { name: string; address: string; suspendedAt: Date | null; logoUrl: string | null } },
       tenantSlug: verified.slug,
     };
   } catch (err) {

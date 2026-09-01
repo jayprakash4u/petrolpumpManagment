@@ -18,16 +18,15 @@ import {
   Check,
   Ban,
   ArrowRight,
-  ShieldCheck,
   Receipt,
-  Layers,
-  ArrowDownRight,
-  Sparkles,
+  AlertTriangle,
+  Zap,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { Input } from "@/components/ui/Field";
+import { Input, Select } from "@/components/ui/Field";
 import { fmtRs, fmtL } from "@/lib/money";
 import { clsx } from "clsx";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
@@ -41,8 +40,10 @@ const RETURN_REASONS = [
   { id: "DUPLICATE_ENTRY", label: "Duplicate Billing Entry" },
   { id: "VOLUME_CORRECTION", label: "Customer Requested Quantity Adjustment" },
   { id: "ABORTED_DISPENSE", label: "Dispense Aborted Mid-Flow" },
-  { id: "OTHER", label: "Other / Custom Statutory Reason" },
+  { id: "OTHER", label: "Other / Custom Reason" },
 ];
+
+const ITEMS_PER_PAGE = 10;
 
 export function SalesReturnsView({
   initialData,
@@ -58,7 +59,8 @@ export function SalesReturnsView({
   const [activeSales] = useState<SerializedSale[]>(initialData.activeSales);
 
   // Return Processing State
-  const [billSearchQuery, setBillSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activePage, setActivePage] = useState(1);
   const [selectedSale, setSelectedSale] = useState<SerializedSale | null>(null);
   const [reasonCategory, setReasonCategory] = useState(RETURN_REASONS[0].label);
   const [customNotes, setCustomNotes] = useState("");
@@ -68,12 +70,13 @@ export function SalesReturnsView({
 
   // Register state
   const [registerSearchQuery, setRegisterSearchQuery] = useState("");
+  const [registerPage, setRegisterPage] = useState(1);
   const [activeSlip, setActiveSlip] = useState<SerializedSale | null>(null);
 
-  // Live filter on active sales
-  const matchingActiveSales = useMemo(() => {
-    if (!billSearchQuery.trim()) return activeSales;
-    const q = billSearchQuery.toLowerCase().trim();
+  // Filtered active sales
+  const filteredActiveSales = useMemo(() => {
+    if (!searchQuery.trim()) return activeSales;
+    const q = searchQuery.toLowerCase().trim();
     const numQ = q.replace(/\D/g, "");
 
     return activeSales.filter((s) => {
@@ -81,16 +84,21 @@ export function SalesReturnsView({
       const matchBill =
         s.billNumber.toLowerCase().includes(q) ||
         `sl-${s.receiptNo}`.toLowerCase().includes(q) ||
-        `#${s.receiptNo}`.toLowerCase().includes(q) ||
-        `inv-${s.receiptNo}`.toLowerCase().includes(q);
+        `#${s.receiptNo}`.toLowerCase().includes(q);
       const matchVeh = s.vehicleNo ? s.vehicleNo.toLowerCase().includes(q) : false;
       const matchCust = s.customerName ? s.customerName.toLowerCase().includes(q) : false;
-      const matchAttendant = s.soldByName.toLowerCase().includes(q);
-      return matchNum || matchBill || matchVeh || matchCust || matchAttendant;
+      return matchNum || matchBill || matchVeh || matchCust;
     });
-  }, [activeSales, billSearchQuery]);
+  }, [activeSales, searchQuery]);
 
-  // Filter on past credit notes
+  // Paginated active sales
+  const totalActivePages = Math.ceil(filteredActiveSales.length / ITEMS_PER_PAGE) || 1;
+  const paginatedActiveSales = useMemo(() => {
+    const start = (activePage - 1) * ITEMS_PER_PAGE;
+    return filteredActiveSales.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredActiveSales, activePage]);
+
+  // Filtered credit notes register
   const filteredReturns = useMemo(() => {
     if (!registerSearchQuery.trim()) return returns;
     const q = registerSearchQuery.toLowerCase().trim();
@@ -101,200 +109,167 @@ export function SalesReturnsView({
       const matchBill =
         r.billNumber.toLowerCase().includes(q) ||
         `crn-${r.receiptNo}`.toLowerCase().includes(q) ||
-        `sl-${r.receiptNo}`.toLowerCase().includes(q) ||
         `#${r.receiptNo}`.toLowerCase().includes(q);
       const matchVeh = r.vehicleNo ? r.vehicleNo.toLowerCase().includes(q) : false;
       const matchCust = r.customerName ? r.customerName.toLowerCase().includes(q) : false;
       const matchReason = r.voidReason ? r.voidReason.toLowerCase().includes(q) : false;
-      const matchAttendant = r.soldByName.toLowerCase().includes(q);
-      return matchNum || matchBill || matchVeh || matchCust || matchReason || matchAttendant;
+      return matchNum || matchBill || matchVeh || matchCust || matchReason;
     });
   }, [returns, registerSearchQuery]);
 
-  const totalReversedAmount = returns.reduce((sum, r) => sum + r.totalAmount, 0);
-  const totalRestockedLiters = returns.reduce((sum, r) => sum + r.liters, 0);
+  // Paginated credit notes register
+  const totalRegisterPages = Math.ceil(filteredReturns.length / ITEMS_PER_PAGE) || 1;
+  const paginatedReturns = useMemo(() => {
+    const start = (registerPage - 1) * ITEMS_PER_PAGE;
+    return filteredReturns.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredReturns, registerPage]);
 
-  // Execute Return
+  // Execute Return Handler
   const handleExecuteReturn = async () => {
-    if (!selectedSale) {
-      setActionError("Please select an invoice to reverse.");
-      return;
-    }
-
-    const fullReason = customNotes.trim()
-      ? `${reasonCategory} — ${customNotes.trim()}`
-      : reasonCategory;
-
+    if (!selectedSale) return;
     setIsSubmitting(true);
     setActionError(null);
 
-    const formData = new FormData();
-    formData.append("saleId", selectedSale.id);
-    formData.append("reason", fullReason);
+    const fullReason = customNotes.trim()
+      ? `${reasonCategory}: ${customNotes.trim()}`
+      : reasonCategory;
 
-    const result = await voidSaleAction({}, formData);
-    setIsSubmitting(false);
+    const fd = new FormData();
+    fd.set("saleId", selectedSale.id);
+    fd.set("reason", fullReason);
 
-    if (result.error) {
-      setActionError(result.error);
-    } else {
-      const newlyVoided: SerializedSale = {
-        ...selectedSale,
-        voided: true,
-        voidReason: fullReason,
-        voidedAt: new Date().toISOString(),
-      };
-      setReturns([newlyVoided, ...returns]);
-      setLastProcessedReturn(newlyVoided);
-      setSelectedSale(null);
-      setCustomNotes("");
+    try {
+      const res = await voidSaleAction({}, fd);
+      if (res.error) {
+        setActionError(res.error);
+        setIsSubmitting(false);
+      } else {
+        const returnedItem: SerializedSale = {
+          ...selectedSale,
+          voided: true,
+          voidReason: fullReason,
+          voidedAt: new Date().toISOString(),
+        };
+
+        setReturns((prev) => [returnedItem, ...prev]);
+        setLastProcessedReturn(returnedItem);
+        setSelectedSale(null);
+        setCustomNotes("");
+        setIsSubmitting(false);
+      }
+    } catch {
+      setActionError("Failed to process return. Please check your connection and try again.");
+      setIsSubmitting(false);
     }
   };
 
+  // Export to CSV
   const handleExportCSV = () => {
+    if (filteredReturns.length === 0) return;
     const headers = [
       "Credit Note #",
       "Original Bill #",
       "Date (BS)",
-      "Vehicle Plate",
+      "Vehicle No",
       "Customer",
       "Fuel Product",
-      "Restocked Volume (L)",
-      "Reversed Amount (NPR)",
-      "Reason for Return",
-      "Authorized By",
+      "Volume Restocked (L)",
+      "Amount Reversed (Rs)",
+      "Reason",
+      "Processed By",
     ];
 
     const rows = filteredReturns.map((r) => [
-      `"CRN-${r.receiptNo}"`,
-      `"${r.billNumber}"`,
-      `"${r.formattedDateBS}"`,
-      `"${r.vehicleNo || ""}"`,
-      `"${r.customerName || "Retail Walk-In"}"`,
-      `"${r.fuel}"`,
-      `"${r.liters}"`,
-      `"${r.totalAmount}"`,
-      `"${r.voidReason || "Sales Return"}"`,
-      `"${r.soldByName}"`,
+      `CRN-${r.receiptNo}`,
+      r.billNumber,
+      r.formattedDateBS,
+      r.vehicleNo || "-",
+      r.customerName || "Walk-In Retail",
+      r.fuel,
+      r.liters.toFixed(2),
+      r.totalAmount.toFixed(2),
+      `"${(r.voidReason || "Sales Return").replace(/"/g, '""')}"`,
+      r.soldByName,
     ]);
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = encodedUri;
-    link.download = `sales_returns_credit_notes_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `Sales_Credit_Notes_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* 1. Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <RotateCcw size={20} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-display text-[17px] font-bold text-text">
-                Sales Returns & Credit Notes
-              </h2>
-              <span className="font-mono text-[11px] rounded bg-surface-hi px-2 py-0.5 font-semibold text-text-muted border border-border">
-                IRD Annexure 6
-              </span>
-            </div>
-            <p className="text-[12px] text-text-muted">
-              Reverse recorded invoices, replenish storage tanks, adjust customer ledgers, and issue statutory credit notes.
-            </p>
-          </div>
+    <div className="mx-auto max-w-4xl space-y-4 animate-fade-in">
+      {/* View Switcher Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-lg font-bold text-text tracking-tight">
+            Sales Returns & Credit Notes (बिक्री फिर्ता)
+          </h1>
+          <span className="font-mono text-[10.5px] rounded-full bg-accent/10 px-2 py-0.5 font-bold text-accent border border-accent/20">
+            IRD Annexure 6
+          </span>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex rounded-xl border border-border bg-bg p-1 text-[12px] font-semibold">
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl border border-border bg-surface p-1 text-xs font-semibold shadow-xs">
             <button
               type="button"
-              onClick={() => setActiveTab("PROCESS")}
+              onClick={() => {
+                setActiveTab("PROCESS");
+                setSelectedSale(null);
+              }}
               className={clsx(
                 "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all cursor-pointer",
                 activeTab === "PROCESS"
-                  ? "bg-surface text-text font-bold shadow-xs border border-border"
+                  ? "bg-accent text-[#1A1306] font-bold shadow-xs"
                   : "text-text-muted hover:text-text"
               )}
             >
-              <RotateCcw size={13} className={activeTab === "PROCESS" ? "text-accent" : ""} />
+              <RotateCcw size={13} />
               Process Return
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("REGISTER")}
+              onClick={() => {
+                setActiveTab("REGISTER");
+                setSelectedSale(null);
+              }}
               className={clsx(
                 "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all cursor-pointer",
                 activeTab === "REGISTER"
-                  ? "bg-surface text-text font-bold shadow-xs border border-border"
+                  ? "bg-accent text-[#1A1306] font-bold shadow-xs"
                   : "text-text-muted hover:text-text"
               )}
             >
-              <History size={13} className={activeTab === "REGISTER" ? "text-accent" : ""} />
+              <History size={13} />
               Credit Notes Register ({returns.length})
             </button>
           </div>
 
-          <GhostButton onClick={() => window.print()} className="text-[12px]">
+          <GhostButton onClick={() => window.print()} className="text-xs">
             <Printer size={13} /> Print
           </GhostButton>
         </div>
       </div>
 
-      {/* 2. Executive KPI Deck */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Credit Notes Issued"
-          value={`${returns.length} Notes`}
-          icon={FileText}
-          tone="text"
-          small
-        />
-        <StatCard
-          label="Total Value Reversed"
-          value={fmtRs(totalReversedAmount)}
-          icon={Scale}
-          tone="accent"
-          small
-        />
-        <StatCard
-          label="Fuel Restocked to Tanks"
-          value={fmtL(totalRestockedLiters)}
-          icon={Fuel}
-          tone="text"
-          small
-        />
-        <StatCard
-          label="Statutory Audit"
-          value="Reconciled"
-          icon={CheckCircle2}
-          tone="success"
-          small
-        />
-      </div>
-
-      {/* Success Notification */}
+      {/* Success Notification Banner */}
       {lastProcessedReturn && (
-        <div className="animate-fade-in flex flex-wrap items-center justify-between gap-3 rounded-xl border border-success/30 bg-success/5 p-4">
+        <div className="animate-fade-in flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-success/30 bg-success/5 p-4 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success text-white">
-              <Check size={16} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-success text-white">
+              <Check size={16} className="stroke-[3]" />
             </div>
             <div>
-              <div className="font-semibold text-text text-xs">
+              <div className="font-bold text-text text-xs">
                 Credit Note CRN-{lastProcessedReturn.receiptNo} Issued Successfully
               </div>
               <div className="text-[11.5px] text-text-muted">
-                Restocked {fmtL(lastProcessedReturn.liters)} {lastProcessedReturn.fuel} to tank · Adjusted {fmtRs(lastProcessedReturn.totalAmount)}
+                Restocked {fmtL(lastProcessedReturn.liters)} {lastProcessedReturn.fuel} to storage tank · Adjusted {fmtRs(lastProcessedReturn.totalAmount)}
               </div>
             </div>
           </div>
@@ -318,297 +293,328 @@ export function SalesReturnsView({
       )}
 
       {/* ========================================================================= */}
-      {/* VIEW 1: PROCESS RETURN CONSOLE                                            */}
+      {/* 1. PROCESS RETURN TAB                                                     */}
       {/* ========================================================================= */}
       {activeTab === "PROCESS" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Left Column: 1. Select Bill (5 Cols) */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="rounded-2xl border border-border bg-surface p-4 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
-                  1. Select Active Bill
-                </span>
-                <span className="text-[11px] font-semibold text-text-muted">
-                  {matchingActiveSales.length} Active Records
-                </span>
+        <div className="space-y-4">
+          {/* Selected Return Execution Panel */}
+          {selectedSale ? (
+            <div className="rounded-2xl border border-accent/40 bg-surface p-5 shadow-sm space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                <div className="flex items-center gap-2">
+                  <RotateCcw size={16} className="text-accent" />
+                  <h2 className="font-display text-sm font-bold text-text">
+                    Confirm Return & Restock for Invoice #{selectedSale.receiptNo}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSale(null);
+                    setActionError(null);
+                  }}
+                  className="text-xs text-text-muted hover:text-error cursor-pointer font-semibold"
+                >
+                  Cancel / Select Another Bill
+                </button>
               </div>
 
-              {/* Fast Search Input */}
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search receipt # (e.g. 2, #1025), vehicle, customer..."
-                  value={billSearchQuery}
-                  onChange={(e) => setBillSearchQuery(e.target.value)}
-                  className="pl-8 pr-7 text-xs"
-                  autoFocus
-                />
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
-                {billSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setBillSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text cursor-pointer"
-                  >
-                    ×
-                  </button>
-                )}
+              {/* Invoice Summary Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-xl border border-border bg-bg p-3.5 text-xs font-mono">
+                <div>
+                  <span className="text-[10.5px] text-text-muted block font-sans">Bill Number</span>
+                  <span className="font-bold text-accent">{selectedSale.billNumber}</span>
+                </div>
+                <div>
+                  <span className="text-[10.5px] text-text-muted block font-sans">Customer / Account</span>
+                  <span className="font-medium text-text">{selectedSale.customerName || "Walk-In Retail"}</span>
+                </div>
+                <div>
+                  <span className="text-[10.5px] text-text-muted block font-sans">Vehicle Plate</span>
+                  <span className="font-bold text-text">{selectedSale.vehicleNo || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-[10.5px] text-text-muted block font-sans">Payment Mode</span>
+                  <span className="font-bold text-text">{selectedSale.paymentMethod}</span>
+                </div>
               </div>
 
-              {/* Active Sales List */}
-              <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-                {matchingActiveSales.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border p-8 text-center text-xs text-text-muted">
-                    No active bills match &quot;{billSearchQuery}&quot;
+              {/* Automatic Impact Box */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Fuel size={16} className="text-emerald-500" />
+                    <span className="text-xs font-medium text-text">Tank Restock</span>
                   </div>
-                ) : (
-                  matchingActiveSales.map((s) => {
-                    const isSelected = selectedSale?.id === s.id;
-                    const fuelId = s.fuel as FuelId;
+                  <span className="font-mono text-sm font-bold text-emerald-500">
+                    +{fmtL(selectedSale.liters)} {selectedSale.fuel}
+                  </span>
+                </div>
 
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => {
-                          setSelectedSale(s);
-                          setActionError(null);
-                        }}
-                        className={clsx(
-                          "rounded-xl border p-3 transition-all cursor-pointer",
-                          isSelected
-                            ? "border-accent bg-accent/5 ring-1 ring-accent"
-                            : "border-border bg-bg hover:border-accent/40 hover:bg-surface-hi"
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-bold text-accent">
-                                #{s.receiptNo}
-                              </span>
-                              <span className="text-xs font-semibold text-text">
-                                {FUEL_LABEL[fuelId]}
-                              </span>
-                              <span className="font-mono text-[11px] text-text-muted">
-                                ({fmtL(s.liters)})
-                              </span>
-                            </div>
+                <div className="rounded-xl border border-error/30 bg-error/5 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Scale size={16} className="text-error" />
+                    <span className="text-xs font-medium text-text">
+                      {selectedSale.paymentMethod === "CREDIT" ? "Ledger Reversal" : "Amount Refund"}
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-bold text-error">
+                    -{fmtRs(selectedSale.totalAmount)}
+                  </span>
+                </div>
+              </div>
 
-                            <div className="text-[11.5px] text-text-muted">
-                              {s.customerName || "Walk-In Retail"}
-                              {s.vehicleNo && <span className="font-mono ml-1">· {s.vehicleNo}</span>}
-                            </div>
-                          </div>
+              {/* Reason & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-border/70">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-text-muted block mb-1">
+                    REASON FOR RETURN
+                  </label>
+                  <Select
+                    value={reasonCategory}
+                    onChange={(e) => setReasonCategory(e.target.value)}
+                    className="text-xs font-bold w-full"
+                  >
+                    {RETURN_REASONS.map((r) => (
+                      <option key={r.id} value={r.label}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
 
-                          <div className="text-right">
-                            <div className="font-mono text-xs font-bold text-text">
-                              {fmtRs(s.totalAmount)}
-                            </div>
-                            <div className="text-[10px] text-text-muted">{s.formattedTime}</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-text-muted block mb-1">
+                    REMARKS / MEMO
+                  </label>
+                  <Input
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    className="text-xs font-medium"
+                  />
+                </div>
+              </div>
+
+              {actionError && (
+                <div className="rounded-xl border border-error/30 bg-error/10 p-3 text-xs text-error font-bold flex items-center gap-2">
+                  <AlertTriangle size={15} className="shrink-0" />
+                  <span>{actionError}</span>
+                </div>
+              )}
+
+              {/* Primary Confirm Button */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/70">
+                <GhostButton
+                  type="button"
+                  onClick={() => setSelectedSale(null)}
+                  className="px-5 py-2 text-xs font-bold text-text-muted hover:text-text"
+                >
+                  Cancel
+                </GhostButton>
+
+                <PrimaryButton
+                  type="button"
+                  onClick={handleExecuteReturn}
+                  disabled={isSubmitting || !canVoid}
+                  className={clsx(
+                    "px-7 py-2 text-xs font-black tracking-wide rounded-xl shadow-md transition-all flex items-center gap-2",
+                    canVoid
+                      ? "bg-accent text-[#1A1306] hover:brightness-110 shadow-accent/20 cursor-pointer"
+                      : "opacity-60 cursor-not-allowed"
+                  )}
+                >
+                  <Check size={16} className="stroke-[3]" />
+                  {isSubmitting ? "Processing Return..." : "✓ Confirm Return & Issue Credit Note"}
+                </PrimaryButton>
               </div>
             </div>
-          </div>
+          ) : (
+            /* Search & Active Bills Table with Pagination */
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-base font-bold text-text tracking-tight">
+                    Select Active Bill to Return (फिर्ता बिल छान्नुहोस्)
+                  </h2>
+                  <p className="text-xs text-text-muted">
+                    Locate the customer invoice by Bill #, vehicle plate, or customer name
+                  </p>
+                </div>
 
-          {/* Right Column: 2. Return Verification & Execution Console (7 Cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="rounded-2xl border border-border bg-surface p-5 space-y-5 shadow-xs">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
-                  2. Return Verification & Ledger Impact
+                <span className="font-mono text-xs text-text-muted font-bold">
+                  {filteredActiveSales.length} Eligible Bills
                 </span>
-                {selectedSale && (
+              </div>
+
+              {/* Simple Clean Search Input */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setActivePage(1);
+                  }}
+                  className="w-full pl-9 pr-8 text-xs font-medium"
+                  autoFocus
+                />
+                {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setSelectedSale(null)}
-                    className="text-[11.5px] font-semibold text-text-muted hover:text-text cursor-pointer"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setActivePage(1);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text cursor-pointer"
                   >
-                    Clear Selection
+                    ✕
                   </button>
                 )}
               </div>
 
-              {!selectedSale ? (
-                <div className="rounded-xl border border-dashed border-border p-14 text-center space-y-2.5">
-                  <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-surface-hi text-text-muted">
-                    <Receipt size={20} />
-                  </div>
-                  <div className="text-xs font-semibold text-text">No Bill Selected</div>
-                  <p className="text-[11.5px] text-text-muted max-w-xs mx-auto">
-                    Select an active invoice from the list on the left to configure the return and review ledger adjustments.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4 animate-fade-in">
-                  {/* Selected Invoice Overview Card */}
-                  <div className="rounded-xl border border-border bg-bg p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-border pb-2.5">
-                      <div>
-                        <div className="text-[11px] text-text-muted">Original Invoice Ref</div>
-                        <div className="font-mono text-sm font-bold text-accent">
-                          #{selectedSale.receiptNo} ({selectedSale.billNumber})
-                        </div>
-                      </div>
-                      <Badge tone="muted">{selectedSale.paymentMethod}</Badge>
-                    </div>
+              {/* Clean Active Bills List Table */}
+              <div className="overflow-hidden rounded-xl border border-border">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-border bg-surface-hi text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                    <tr>
+                      <th className="p-2.5 border-r border-border">Bill #</th>
+                      <th className="p-2.5 border-r border-border">Customer</th>
+                      <th className="p-2.5 border-r border-border">Vehicle</th>
+                      <th className="p-2.5 border-r border-border">Product & Volume</th>
+                      <th className="p-2.5 border-r border-border text-right">Amount (Rs)</th>
+                      <th className="p-2.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {paginatedActiveSales.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-text-muted text-xs">
+                          No active bills found matching &quot;{searchQuery}&quot;.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedActiveSales.map((s) => {
+                        const fuelId = s.fuel as FuelId;
+                        return (
+                          <tr key={s.id} className="transition-colors hover:bg-surface-hi/30">
+                            <td className="p-2.5 border-r border-border font-mono font-bold text-accent">
+                              #{s.receiptNo}
+                            </td>
+                            <td className="p-2.5 border-r border-border font-medium text-text">
+                              {s.customerName || "Walk-In Retail"}
+                            </td>
+                            <td className="p-2.5 border-r border-border font-mono text-text">
+                              {s.vehicleNo || "-"}
+                            </td>
+                            <td className="p-2.5 border-r border-border">
+                              <span className="font-semibold text-text">{FUEL_LABEL[fuelId] || s.fuel}</span>
+                              <span className="font-mono text-text-muted ml-1.5">({fmtL(s.liters)})</span>
+                            </td>
+                            <td className="p-2.5 border-r border-border text-right font-mono font-bold text-text">
+                              {fmtRs(s.totalAmount)}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <PrimaryButton
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSale(s);
+                                  setActionError(null);
+                                }}
+                                className="text-[11px] px-3 py-1 bg-accent text-[#1A1306] font-bold rounded-lg cursor-pointer"
+                              >
+                                Return Bill
+                              </PrimaryButton>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div>
-                        <span className="text-[11px] text-text-muted block">Fuel Product & Volume</span>
-                        <span className="font-semibold text-text">
-                          {selectedSale.fuel} · {fmtL(selectedSale.liters)}
-                        </span>
-                      </div>
+              {/* Active Bills Pagination */}
+              {filteredActiveSales.length > ITEMS_PER_PAGE && (
+                <div className="flex items-center justify-between border-t border-border/70 pt-3 text-xs">
+                  <span className="text-text-muted font-mono">
+                    Showing {(activePage - 1) * ITEMS_PER_PAGE + 1}–
+                    {Math.min(activePage * ITEMS_PER_PAGE, filteredActiveSales.length)} of{" "}
+                    {filteredActiveSales.length} bills
+                  </span>
 
-                      <div>
-                        <span className="text-[11px] text-text-muted block">Billed Amount</span>
-                        <span className="font-mono font-bold text-text">
-                          {fmtRs(selectedSale.totalAmount)}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-text-muted block">Customer / Account</span>
-                        <span className="font-medium text-text">
-                          {selectedSale.customerName || "Walk-In Cash"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-text-muted block">Vehicle Plate</span>
-                        <span className="font-mono text-text">
-                          {selectedSale.vehicleNo || "N/A"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Clean Accounting & Restock Impact Summary */}
-                  <div className="rounded-xl border border-border bg-surface-hi p-4 space-y-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted block">
-                      Automatic System Adjustments on Return
-                    </span>
-
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <Fuel size={14} className="text-accent" />
-                          <span className="text-text-muted">Inventory Restock</span>
-                        </div>
-                        <span className="font-mono font-bold text-text">
-                          +{fmtL(selectedSale.liters)} {selectedSale.fuel}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <Scale size={14} className="text-accent" />
-                          <span className="text-text-muted">
-                            {selectedSale.paymentMethod === "CREDIT" ? "Credit Ledger Adjustment" : "Revenue Refund"}
-                          </span>
-                        </div>
-                        <span className="font-mono font-bold text-text">
-                          -{fmtRs(selectedSale.totalAmount)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg border border-border bg-bg px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <FileText size={14} className="text-accent" />
-                          <span className="text-text-muted">Statutory Document</span>
-                        </div>
-                        <span className="font-mono font-semibold text-text">
-                          Credit Note CRN-{selectedSale.receiptNo}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Reason Selection */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-text block">
-                      Reason for Return (Required)
-                    </label>
-
-                    <select
-                      value={reasonCategory}
-                      onChange={(e) => setReasonCategory(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-bg p-2 text-xs text-text focus:outline-none focus:border-accent"
-                    >
-                      {RETURN_REASONS.map((r) => (
-                        <option key={r.id} value={r.label}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </select>
-
-                    <Input
-                      placeholder="Additional remarks or notes (optional)..."
-                      value={customNotes}
-                      onChange={(e) => setCustomNotes(e.target.value)}
-                      className="text-xs"
-                    />
-                  </div>
-
-                  {actionError && (
-                    <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-xs text-error font-medium">
-                      {actionError}
-                    </div>
-                  )}
-
-                  {/* Action Button */}
-                  <div className="pt-2">
-                    <PrimaryButton
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <button
                       type="button"
-                      onClick={handleExecuteReturn}
-                      disabled={isSubmitting || !canVoid}
-                      className="w-full py-2.5 text-xs font-bold"
+                      onClick={() => setActivePage((p) => Math.max(1, p - 1))}
+                      disabled={activePage === 1}
+                      className={clsx(
+                        "rounded-lg border border-border px-2.5 py-1 text-xs transition-colors flex items-center gap-1",
+                        activePage === 1
+                          ? "opacity-40 cursor-not-allowed text-text-muted"
+                          : "hover:bg-surface-hi text-text cursor-pointer"
+                      )}
                     >
-                      {isSubmitting ? "Processing Return…" : "Confirm Return & Restock Fuel"}
-                    </PrimaryButton>
+                      <ChevronLeft size={13} /> Prev
+                    </button>
+                    <span className="px-2 font-bold text-text">
+                      {activePage} / {totalActivePages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActivePage((p) => Math.min(totalActivePages, p + 1))}
+                      disabled={activePage === totalActivePages}
+                      className={clsx(
+                        "rounded-lg border border-border px-2.5 py-1 text-xs transition-colors flex items-center gap-1",
+                        activePage === totalActivePages
+                          ? "opacity-40 cursor-not-allowed text-text-muted"
+                          : "hover:bg-surface-hi text-text cursor-pointer"
+                      )}
+                    >
+                      Next <ChevronRight size={13} />
+                    </button>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* VIEW 2: CREDIT NOTES REGISTER                                             */}
+      {/* 2. CREDIT NOTES REGISTER TAB                                              */}
       {/* ========================================================================= */}
       {activeTab === "REGISTER" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-4 shadow-xs">
-            <div className="flex flex-1 min-w-[280px] items-center gap-2.5 rounded-xl border border-border bg-bg px-3.5 py-2 text-text">
-              <Search size={15} className="text-text-muted" />
-              <input
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4 shadow-xs">
+            <div className="relative flex-1 min-w-[280px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+              <Input
                 type="text"
-                placeholder="Search Credit Note #, Bill #, vehicle plate, customer, or reason..."
                 value={registerSearchQuery}
-                onChange={(e) => setRegisterSearchQuery(e.target.value)}
-                className="w-full bg-transparent text-xs text-text placeholder:text-text-muted focus:outline-none"
+                onChange={(e) => {
+                  setRegisterSearchQuery(e.target.value);
+                  setRegisterPage(1);
+                }}
+                className="w-full pl-9 pr-8 text-xs font-medium"
               />
               {registerSearchQuery && (
                 <button
                   type="button"
-                  onClick={() => setRegisterSearchQuery("")}
-                  className="text-xs text-text-muted hover:text-text cursor-pointer"
+                  onClick={() => {
+                    setRegisterSearchQuery("");
+                    setRegisterPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted hover:text-text cursor-pointer"
                 >
-                  ×
+                  ✕
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-text-muted font-data">
-                {filteredReturns.length} records found
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-text-muted font-mono">
+                {filteredReturns.length} credit notes
               </span>
               <GhostButton onClick={handleExportCSV} className="text-xs">
                 <Download size={13} /> Export CSV
@@ -619,8 +625,8 @@ export function SalesReturnsView({
           {/* Table */}
           <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[900px]">
-                <thead className="border-b border-border bg-surface-hi text-[11px] font-semibold uppercase tracking-wider text-text-muted font-data">
+              <table className="w-full text-left text-xs min-w-[850px]">
+                <thead className="border-b border-border bg-surface-hi text-[11px] font-bold uppercase tracking-wider text-text-muted">
                   <tr>
                     <th className="px-4 py-3">Credit Note #</th>
                     <th className="px-3 py-3">Original Bill</th>
@@ -634,58 +640,53 @@ export function SalesReturnsView({
                     <th className="px-3 py-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border font-data">
-                  {filteredReturns.length === 0 ? (
+                <tbody className="divide-y divide-border">
+                  {paginatedReturns.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-text-muted">
                         No credit notes recorded matching the search.
                       </td>
                     </tr>
                   ) : (
-                    filteredReturns.map((r) => {
+                    paginatedReturns.map((r) => {
                       const fuelId = r.fuel as FuelId;
 
                       return (
-                        <tr
-                          key={r.id}
-                          onClick={() => setActiveSlip(r)}
-                          className="cursor-pointer hover:bg-surface-hi/70 transition-colors"
-                        >
+                        <tr key={r.id} className="hover:bg-surface-hi/50 transition-colors">
                           <td className="px-4 py-3 font-mono font-bold text-accent">
                             CRN-{r.receiptNo}
                           </td>
-                          <td className="px-3 py-3 font-mono text-text-muted">
-                            #{r.receiptNo}
+                          <td className="px-3 py-3 font-mono text-text">
+                            {r.billNumber}
                           </td>
-                          <td className="px-3 py-3 text-text-muted">
-                            {r.formattedDateBS} {r.formattedTime}
+                          <td className="px-3 py-3 font-mono text-text-muted">
+                            {r.formattedDateBS}
                           </td>
                           <td className="px-3 py-3 font-mono text-text">
-                            {r.vehicleNo || "—"}
+                            {r.vehicleNo || "-"}
                           </td>
                           <td className="px-4 py-3 font-medium text-text">
-                            {r.customerName || "Retail Walk-In"}
+                            {r.customerName || "Walk-In Retail"}
                           </td>
-                          <td className="px-3 py-3 font-medium text-text">
-                            {FUEL_LABEL[fuelId]}
+                          <td className="px-3 py-3">
+                            <span className="font-semibold text-text">
+                              {FUEL_LABEL[fuelId] || r.fuel}
+                            </span>
                           </td>
-                          <td className="px-3 py-3 text-right font-medium text-text">
-                            {fmtL(r.liters)}
+                          <td className="px-3 py-3 text-right font-mono font-bold text-emerald-500">
+                            +{fmtL(r.liters)}
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-text">
                             {fmtRs(r.totalAmount)}
                           </td>
-                          <td className="px-4 py-3 text-text-muted truncate max-w-xs">
+                          <td className="px-4 py-3 text-text-muted text-[11px] max-w-xs truncate">
                             {r.voidReason || "Sales Return"}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <GhostButton
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveSlip(r);
-                              }}
-                              className="text-[11px] px-2 py-0.5"
+                              onClick={() => setActiveSlip(r)}
+                              className="text-[11px] px-2.5 py-1"
                             >
                               <Printer size={12} /> View Slip
                             </GhostButton>
@@ -697,11 +698,54 @@ export function SalesReturnsView({
                 </tbody>
               </table>
             </div>
+
+            {/* Credit Notes Register Pagination */}
+            {filteredReturns.length > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between border-t border-border/70 px-4 py-3 text-xs">
+                <span className="text-text-muted font-mono">
+                  Showing {(registerPage - 1) * ITEMS_PER_PAGE + 1}–
+                  {Math.min(registerPage * ITEMS_PER_PAGE, filteredReturns.length)} of{" "}
+                  {filteredReturns.length} credit notes
+                </span>
+
+                <div className="flex items-center gap-1.5 font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterPage((p) => Math.max(1, p - 1))}
+                    disabled={registerPage === 1}
+                    className={clsx(
+                      "rounded-lg border border-border px-2.5 py-1 text-xs transition-colors flex items-center gap-1",
+                      registerPage === 1
+                        ? "opacity-40 cursor-not-allowed text-text-muted"
+                        : "hover:bg-surface-hi text-text cursor-pointer"
+                    )}
+                  >
+                    <ChevronLeft size={13} /> Prev
+                  </button>
+                  <span className="px-2 font-bold text-text">
+                    {registerPage} / {totalRegisterPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRegisterPage((p) => Math.min(totalRegisterPages, p + 1))}
+                    disabled={registerPage === totalRegisterPages}
+                    className={clsx(
+                      "rounded-lg border border-border px-2.5 py-1 text-xs transition-colors flex items-center gap-1",
+                      registerPage === totalRegisterPages
+                        ? "opacity-40 cursor-not-allowed text-text-muted"
+                        : "hover:bg-surface-hi text-text cursor-pointer"
+                    )}
+                  >
+                    Next <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* 3. Printable Slip Modal */}
+      {/* 3. Printable Credit Note Modal */}
       {activeSlip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
           <div className="relative w-full max-w-md rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden">
@@ -725,7 +769,7 @@ export function SalesReturnsView({
               <div className="rounded-xl border border-border bg-bg p-4 space-y-2 text-xs font-mono">
                 <div className="border-b border-dashed border-border pb-2 text-center">
                   <div className="font-bold text-text text-sm">FUEL STATION MANAGEMENT</div>
-                  <div className="text-[11px] text-accent">CREDIT NOTE / अनुसूची ६</div>
+                  <div className="text-[11px] text-accent font-bold">CREDIT NOTE / अनुसूची ६</div>
                   <div className="text-[10px] text-text-muted">
                     #CRN-{activeSlip.receiptNo} · Date: {activeSlip.formattedDateBS}
                   </div>
@@ -746,13 +790,13 @@ export function SalesReturnsView({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-muted">Fuel Restocked:</span>
-                    <span className="text-text">
-                      {fmtL(activeSlip.liters)} {activeSlip.fuel}
+                    <span className="text-text font-bold text-emerald-500">
+                      +{fmtL(activeSlip.liters)} {activeSlip.fuel}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-1 font-bold text-xs">
                     <span>Reversed Value:</span>
-                    <span>Rs {activeSlip.totalAmount.toLocaleString()}</span>
+                    <span className="text-accent">{fmtRs(activeSlip.totalAmount)}</span>
                   </div>
                 </div>
 

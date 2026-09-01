@@ -4,6 +4,7 @@ import type { FuelType, PaymentMethod } from "@/lib/permissions";
 import { requireTenantDb } from "@/lib/tenant-db";
 import type { BillFilters } from "@/lib/bill-filters";
 import { fmtBSDate } from "@/lib/bs-date";
+import type { MergedStationInvoiceConfig } from "@/lib/invoice-settings";
 
 export interface SerializedBillItem {
   id: string;
@@ -41,9 +42,20 @@ export interface BillsPageTotals {
 
 export interface BillsPageData {
   stationName: string;
+  invoiceConfig?: MergedStationInvoiceConfig;
   bills: SerializedBillItem[];
   totals: BillsPageTotals;
-  customers: { id: string; name: string; headroom: string; dueAmount: string }[];
+  tanks?: { id: string; name: string; fuel: FuelType; ratePerL: number; levelL: number; capacityL: number }[];
+  customers: {
+    id: string;
+    name: string;
+    phone: string | null;
+    panNo: string | null;
+    email: string | null;
+    address: string | null;
+    headroom: string;
+    dueAmount: string;
+  }[];
 }
 
 /** Static realistic station fallback records for rich demonstration & testing. */
@@ -255,8 +267,9 @@ export async function getBillsPageData(
     ];
   }
 
-  const [station, rawSales, customers] = await Promise.all([
+  const [station, tanks, rawSales, customers] = await Promise.all([
     tenantDb.station.findFirst({ where: { id: stationId }, select: { name: true } }),
+    tenantDb.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
     tenantDb.sale.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -268,7 +281,7 @@ export async function getBillsPageData(
     }),
     tenantDb.customer.findMany({
       where: { stationId, active: true },
-      select: { id: true, name: true, creditLimit: true, dueAmount: true },
+      select: { id: true, name: true, phone: true, panNo: true, email: true, address: true, creditLimit: true, dueAmount: true },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -336,8 +349,28 @@ export async function getBillsPageData(
     }
   }
 
+  let rawStation: any = null;
+  let rawInvoiceSettings: any = null;
+  try {
+    const sRows: any[] = await tenantDb.$queryRawUnsafe(
+      `SELECT TOP 1 * FROM [dbo].[Station] WHERE [id] = '${stationId.replace(/'/g, "''")}'`
+    );
+    if (sRows && sRows.length > 0) rawStation = sRows[0];
+
+    const iRows: any[] = await tenantDb.$queryRawUnsafe(
+      `SELECT TOP 1 * FROM [dbo].[StationInvoiceSettings] WHERE [stationId] = '${stationId.replace(/'/g, "''")}'`
+    );
+    if (iRows && iRows.length > 0) rawInvoiceSettings = iRows[0];
+  } catch {
+    // Fallback
+  }
+
+  const { mergeInvoiceConfig } = await import("@/lib/invoice-settings");
+  const invoiceConfig = mergeInvoiceConfig(rawStation, rawInvoiceSettings);
+
   return {
-    stationName: station?.name ?? "Station",
+    stationName: station?.name ?? rawStation?.name ?? "Station",
+    invoiceConfig,
     bills,
     totals: {
       totalCount: bills.length,
@@ -351,16 +384,28 @@ export async function getBillsPageData(
       creditAmount,
       cardAmount,
     },
+    tanks: tanks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      fuel: t.fuel as FuelType,
+      ratePerL: Number(t.ratePerL),
+      levelL: Number(t.levelL),
+      capacityL: Number(t.capacityL),
+    })),
     customers: [
       ...customers.map((c) => ({
         id: c.id,
         name: c.name,
+        phone: c.phone ?? null,
+        panNo: c.panNo ?? null,
+        email: c.email ?? null,
+        address: c.address ?? null,
         headroom: "50000",
         dueAmount: c.dueAmount ? c.dueAmount.toString() : "0",
       })),
-      { id: "cust-sajha", name: "Sajha Yatayat", headroom: "150000", dueAmount: "45000" },
-      { id: "cust-kmc", name: "Kathmandu Metropolitan City", headroom: "300000", dueAmount: "82000" },
-      { id: "cust-police", name: "Nepal Police Welfare", headroom: "100000", dueAmount: "12000" },
+      { id: "cust-sajha", name: "Sajha Yatayat", phone: "01-4412091", panNo: "600123984", email: "info@sajha.org.np", address: "Pulchowk, Lalitpur", headroom: "150000", dueAmount: "45000" },
+      { id: "cust-kmc", name: "Kathmandu Metropolitan City", phone: "01-4231481", panNo: "300001290", email: "procurement@kathmandu.gov.np", address: "Bagdurbar, Kathmandu", headroom: "300000", dueAmount: "82000" },
+      { id: "cust-police", name: "Nepal Police Welfare", phone: "01-4411210", panNo: "300045129", email: "welfare@nepalpolice.gov.np", address: "Naxal, Kathmandu", headroom: "100000", dueAmount: "12000" },
     ],
   };
 }

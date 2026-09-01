@@ -37,11 +37,13 @@ export function EditBillModal({
   onSaved?: () => void;
 }) {
   const [vehicleNo, setVehicleNo] = useState(sale.vehicleNo || "");
+  const [buyerName, setBuyerName] = useState((sale as any).buyerName || (sale.customerId ? "" : sale.customerName || ""));
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "ONLINE" | "CARD" | "CREDIT">(
     (sale.paymentMethod as any) || "CASH"
   );
   const [customerId, setCustomerId] = useState(sale.customerId || "");
   const [paymentRef, setPaymentRef] = useState("");
+  const [remarks, setRemarks] = useState((sale as any).remarks || "");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -61,9 +63,11 @@ export function EditBillModal({
     const formData = new FormData();
     formData.append("saleId", sale.id);
     formData.append("vehicleNo", vehicleNo);
+    formData.append("buyerName", buyerName);
     formData.append("paymentMethod", paymentMethod);
     formData.append("customerId", paymentMethod === "CREDIT" ? customerId : "");
     formData.append("paymentRef", paymentRef);
+    formData.append("remarks", remarks);
     formData.append("reason", reason);
 
     const res = await editSaleAction({}, formData);
@@ -161,6 +165,18 @@ export function EditBillModal({
             </div>
           </div>
 
+          {/* Party Name / Walk-In Customer Input */}
+          {paymentMethod !== "CREDIT" && (
+            <Field label="Party / Buyer Name (optional)" htmlFor="editBuyerName">
+              <Input
+                id="editBuyerName"
+                value={buyerName}
+                onChange={(e) => setBuyerName(e.target.value)}
+                placeholder="e.g. Yani International Pvt Ltd / Walk-In Retail"
+              />
+            </Field>
+          )}
+
           {/* Credit Customer Field */}
           {paymentMethod === "CREDIT" && (
             <Field label="Assign to Credit Customer" htmlFor="editCustomer">
@@ -173,7 +189,7 @@ export function EditBillModal({
                 <option value="">Select customer account…</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
+                    {c.name} {c.panNo ? `(PAN: ${c.panNo})` : ""}
                   </option>
                 ))}
               </Select>
@@ -191,6 +207,16 @@ export function EditBillModal({
               />
             </Field>
           )}
+
+          {/* Shift / Billing Remarks */}
+          <Field label="Billing Notes / Remarks (optional)" htmlFor="editRemarks">
+            <Input
+              id="editRemarks"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g. Verified odometer / Dispensed on forecourt nozzle 2"
+            />
+          </Field>
 
           {/* Mandatory Reason for Edit */}
           <div>

@@ -87,17 +87,52 @@ model Station {
   phone           String?
   email           String?
   address         String
+  panNo           String?
+  vatNo           String?
+  dealerCode      String?
+  logoUrl         String?   @db.NVarChar(Max)
   suspendedAt     DateTime?
   suspendedReason String?
   createdAt       DateTime  @default(now())
   nextReceiptNo   Int       @default(1)
 
-  users     User[]
-  tanks     Tank[]
-  customers Customer[]
-  sales     Sale[]
-  purchases Purchase[]
-  auditLogs AuditLog[]
+  users           User[]
+  tanks           Tank[]
+  customers       Customer[]
+  sales           Sale[]
+  purchases       Purchase[]
+  auditLogs       AuditLog[]
+  invoiceSettings StationInvoiceSettings?
+}
+
+model StationInvoiceSettings {
+  id                  String   @id @default(cuid())
+  stationId           String   @unique
+  station             Station  @relation(fields: [stationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  
+  showPan             Boolean  @default(true)
+  showVat             Boolean  @default(true)
+  showVehicle         Boolean  @default(true)
+  showCustomerAddress Boolean  @default(true)
+  showCustomerPan     Boolean  @default(true)
+  showCustomerPhone   Boolean  @default(true)
+  showSignature       Boolean  @default(true)
+  showAmountInWords   Boolean  @default(true)
+  showPaymentMode     Boolean  @default(true)
+  showDiscount        Boolean  @default(true)
+  showQrCode          Boolean  @default(true)
+  showRate            Boolean  @default(true)
+  
+  primaryColor        String   @default("#1B4D8C")
+  accentColor         String   @default("#F59E0B")
+  paperSize           String   @default("80MM") // 80MM, 58MM, A4, A5
+  
+  headerTitle         String   @default("TAX INVOICE")
+  footerGreeting      String   @default("Thank you for fueling with us! Safe Journey.")
+  termsNotes          String?  @db.NVarChar(1000)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model User {

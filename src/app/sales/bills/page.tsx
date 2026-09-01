@@ -14,6 +14,7 @@ export default async function ListBillsPage({ searchParams }: PageProps<"/sales/
       initialData={data}
       filters={filters}
       canVoid={can(user.role, "voidSale")}
+      canSell={can(user.role, "recordSale")}
     />
   );
 }

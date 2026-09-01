@@ -4,16 +4,19 @@ import { useState } from "react";
 import { X, PlusCircle, Fuel } from "lucide-react";
 import { SaleForm } from "@/components/sales/SaleForm";
 import type { TankOption, CustomerOption } from "@/lib/queries/sales";
+import type { MergedStationInvoiceConfig } from "@/lib/invoice-settings";
 
 export function NewSaleModal({
   tanks,
   customers,
   canSell,
+  invoiceConfig,
   onClose,
 }: {
   tanks: TankOption[];
   customers: CustomerOption[];
   canSell: boolean;
+  invoiceConfig?: MergedStationInvoiceConfig | null;
   onClose: () => void;
 }) {
   return (
@@ -46,7 +49,12 @@ export function NewSaleModal({
 
         {/* Modal Body: Fast Sale Form */}
         <div className="p-5 max-h-[80vh] overflow-y-auto">
-          <SaleForm tanks={tanks} customers={customers} canSell={canSell} />
+          <SaleForm
+            tanks={tanks}
+            customers={customers}
+            canSell={canSell}
+            invoiceConfig={invoiceConfig}
+          />
         </div>
       </div>
     </div>

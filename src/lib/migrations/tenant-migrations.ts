@@ -288,4 +288,58 @@ BEGIN
 END;
 `,
   },
+  {
+    id: "006_station_invoice_settings",
+    description: "Station business profile fields and StationInvoiceSettings table for multi-tenant configurable invoice templates.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Station' AND COLUMN_NAME = 'panNo')
+BEGIN
+    ALTER TABLE [dbo].[Station] ADD [panNo] NVARCHAR(1000) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Station' AND COLUMN_NAME = 'vatNo')
+BEGIN
+    ALTER TABLE [dbo].[Station] ADD [vatNo] NVARCHAR(1000) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Station' AND COLUMN_NAME = 'dealerCode')
+BEGIN
+    ALTER TABLE [dbo].[Station] ADD [dealerCode] NVARCHAR(1000) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Station' AND COLUMN_NAME = 'logoUrl')
+BEGIN
+    ALTER TABLE [dbo].[Station] ADD [logoUrl] NVARCHAR(MAX) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'StationInvoiceSettings')
+BEGIN
+    CREATE TABLE [dbo].[StationInvoiceSettings] (
+        [id] NVARCHAR(1000) NOT NULL PRIMARY KEY,
+        [stationId] NVARCHAR(1000) NOT NULL UNIQUE,
+        [showPan] BIT NOT NULL DEFAULT 1,
+        [showVat] BIT NOT NULL DEFAULT 1,
+        [showVehicle] BIT NOT NULL DEFAULT 1,
+        [showCustomerAddress] BIT NOT NULL DEFAULT 1,
+        [showCustomerPan] BIT NOT NULL DEFAULT 1,
+        [showCustomerPhone] BIT NOT NULL DEFAULT 1,
+        [showSignature] BIT NOT NULL DEFAULT 1,
+        [showAmountInWords] BIT NOT NULL DEFAULT 1,
+        [showPaymentMode] BIT NOT NULL DEFAULT 1,
+        [showDiscount] BIT NOT NULL DEFAULT 1,
+        [showQrCode] BIT NOT NULL DEFAULT 1,
+        [showRate] BIT NOT NULL DEFAULT 1,
+        [primaryColor] NVARCHAR(100) NOT NULL DEFAULT '#1B4D8C',
+        [accentColor] NVARCHAR(100) NOT NULL DEFAULT '#F59E0B',
+        [paperSize] NVARCHAR(50) NOT NULL DEFAULT '80MM',
+        [headerTitle] NVARCHAR(200) NOT NULL DEFAULT 'TAX INVOICE',
+        [footerGreeting] NVARCHAR(500) NOT NULL DEFAULT 'Thank you for fueling with us! Safe Journey.',
+        [termsNotes] NVARCHAR(1000) NULL,
+        [createdAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        [updatedAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT [FK_StationInvoiceSettings_Station] FOREIGN KEY ([stationId]) REFERENCES [dbo].[Station]([id]) ON DELETE CASCADE ON UPDATE NO ACTION
+    );
+END;
+`,
+  },
 ];

@@ -90,8 +90,31 @@ export async function getSalesPageData(_stationId?: string) {
 
   const sales = recentSalesRaw.map(mapSale);
 
+  let rawStation: any = null;
+  let rawInvoiceSettings: any = null;
+  try {
+    const sRows: any[] = await tenantDb.$queryRawUnsafe(
+      `SELECT TOP 1 * FROM [dbo].[Station] WHERE [id] = '${stationId.replace(/'/g, "''")}'`
+    );
+    if (sRows && sRows.length > 0) rawStation = sRows[0];
+
+    const iRows: any[] = await tenantDb.$queryRawUnsafe(
+      `SELECT TOP 1 * FROM [dbo].[StationInvoiceSettings] WHERE [stationId] = '${stationId.replace(/'/g, "''")}'`
+    );
+    if (iRows && iRows.length > 0) rawInvoiceSettings = iRows[0];
+  } catch {
+    // Non-critical fallback
+  }
+
+  const { mergeInvoiceConfig } = await import("@/lib/invoice-settings");
+  const invoiceConfig = mergeInvoiceConfig(rawStation, rawInvoiceSettings);
+  const invoiceNumber = `SL-${String(rawStation?.nextReceiptNo ?? 1).padStart(4, "0")}`;
+
   return {
-    stationName: station?.name ?? "Station",
+    stationName: station?.name ?? rawStation?.name ?? "Station",
+    nextReceiptNo: rawStation?.nextReceiptNo ?? 1,
+    invoiceNumber,
+    invoiceConfig,
     tanks: tanks.map((t) => ({
       id: t.id,
       fuel: t.fuel,

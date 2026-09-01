@@ -400,26 +400,30 @@ export interface EditSaleState {
 const EditSaleSchema = z.object({
   saleId: z.string().min(1, "Missing sale ID"),
   vehicleNo: z.string().optional(),
+  buyerName: z.string().optional(),
   customerId: z.string().optional(),
   paymentMethod: z.enum(["CASH", "CREDIT", "ONLINE", "CARD"]),
   onlineProvider: z.string().optional(),
   paymentRef: z.string().optional(),
+  remarks: z.string().optional(),
   reason: z.string().trim().min(3, "Please give a reason for editing this bill"),
 });
 
 export async function editSaleAction(_prev: EditSaleState, formData: FormData): Promise<EditSaleState> {
   const { prisma: tenantDb, stationId, user } = await requireTenantDb();
-  if (!can(user.role as Role, "voidSale")) {
+  if (!can(user.role as Role, "voidSale") && user.role !== "OWNER" && user.role !== "MANAGER") {
     return { error: "Only an owner or manager can edit a recorded bill." };
   }
 
   const parsed = EditSaleSchema.safeParse({
     saleId: formData.get("saleId"),
     vehicleNo: formData.get("vehicleNo") || undefined,
+    buyerName: formData.get("buyerName") || undefined,
     customerId: formData.get("customerId") || undefined,
     paymentMethod: formData.get("paymentMethod"),
     onlineProvider: formData.get("onlineProvider") || undefined,
     paymentRef: formData.get("paymentRef") || undefined,
+    remarks: formData.get("remarks") || undefined,
     reason: formData.get("reason"),
   });
 
@@ -427,7 +431,7 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
     return { error: parsed.error.issues[0]?.message ?? "Invalid edit data" };
   }
 
-  const { saleId, vehicleNo, customerId, paymentMethod, onlineProvider, paymentRef, reason } = parsed.data;
+  const { saleId, vehicleNo, buyerName, customerId, paymentMethod, onlineProvider, paymentRef, remarks, reason } = parsed.data;
 
   try {
     await tenantDb.$transaction(async (tx) => {
@@ -469,8 +473,10 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
         where: { id: sale.id },
         data: {
           vehicleNo: vehicleNo ? vehicleNo.trim().toUpperCase() : null,
+          buyerName: buyerName ? buyerName.trim() : sale.buyerName,
           customerId: newCustomerId,
           paymentMethod: paymentMethod as PaymentMethod,
+          remarks: remarks !== undefined ? remarks.trim() : sale.remarks,
         },
       });
 
@@ -487,11 +493,13 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
             reason,
             previous: {
               vehicleNo: sale.vehicleNo,
+              buyerName: sale.buyerName,
               customerId: sale.customerId,
               paymentMethod: sale.paymentMethod,
             },
             updated: {
               vehicleNo: vehicleNo || null,
+              buyerName: buyerName || null,
               customerId: newCustomerId,
               paymentMethod,
               onlineProvider,
@@ -503,6 +511,7 @@ export async function editSaleAction(_prev: EditSaleState, formData: FormData): 
     });
 
     revalidatePath("/sales");
+    revalidatePath("/sales/bills");
     revalidatePath("/dashboard");
     return { success: true };
   } catch (err) {

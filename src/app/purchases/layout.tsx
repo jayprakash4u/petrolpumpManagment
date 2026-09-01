@@ -6,7 +6,13 @@ export default async function PurchasesLayout({ children }: { children: ReactNod
   const user = await requireUser();
 
   return (
-    <DashboardShell title="Purchase Management" userName={user.name} userRole={user.role} stationName={user.station.name}>
+    <DashboardShell
+      title="Purchase Management"
+      userName={user.name}
+      userRole={user.role}
+      stationName={user.station.name}
+      logoUrl={user.station.logoUrl}
+    >
       {children}
     </DashboardShell>
   );

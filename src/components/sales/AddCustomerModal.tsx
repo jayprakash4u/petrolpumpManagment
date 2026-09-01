@@ -78,12 +78,12 @@ export function AddCustomerModal({
         </Field>
 
         <Field label="PAN / VAT No. (optional)" htmlFor="acPan">
-          <Input id="acPan" name="panNo" defaultValue={editingCustomer?.panNo ?? ""} placeholder="600123456" />
+          <Input id="acPan" name="panNo" defaultValue={editingCustomer?.panNo ?? ""} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Phone (optional)" htmlFor="acPhone">
-            <Input id="acPhone" name="phone" inputMode="tel" defaultValue={editingCustomer?.phone ?? ""} placeholder="98410 22310" />
+            <Input id="acPhone" name="phone" inputMode="tel" defaultValue={editingCustomer?.phone ?? ""} />
           </Field>
           <Field label="Email (optional)" htmlFor="acEmail">
             <Input id="acEmail" name="email" type="email" defaultValue={editingCustomer?.email ?? ""} />
@@ -91,7 +91,7 @@ export function AddCustomerModal({
         </div>
 
         <Field label="Address (optional)" htmlFor="acAddress">
-          <Input id="acAddress" name="address" defaultValue={editingCustomer?.address ?? ""} placeholder="New Baneshwor, Kathmandu" />
+          <Input id="acAddress" name="address" defaultValue={editingCustomer?.address ?? ""} />
         </Field>
 
         {!isEditing && (

@@ -117,31 +117,44 @@ export default async function AdminStationsPage() {
                   }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
-                    {/* Station Meta */}
-                    <div className="space-y-1.5 min-w-[260px] flex-1">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-display text-[16px] font-bold text-text">
-                          {s.name}
-                        </span>
-                        <span className="font-mono rounded bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
-                          slug: {s.slug}
-                        </span>
-                        {isSuspended ? (
-                          <Badge tone="error">SUSPENDED</Badge>
-                        ) : s.saleCount === 0 ? (
-                          <Badge tone="muted">PROVISIONED / NO SALES</Badge>
-                        ) : (
-                          <Badge tone="success">OPERATIONAL</Badge>
-                        )}
-                      </div>
-
-                      <div className="text-[12.5px] text-text-muted">{s.address}</div>
-
-                      {isSuspended && s.suspendedReason && (
-                        <div className="rounded-lg bg-error/10 border border-error/30 px-3 py-1.5 text-[12px] text-error font-medium">
-                          <strong>Suspension Reason:</strong> {s.suspendedReason} · {whenExact(s.suspendedAt!)}
+                    {/* Station Meta & Logo */}
+                    <div className="flex items-start gap-3.5 min-w-[260px] flex-1">
+                      {s.logoUrl ? (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xs">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={s.logoUrl} alt={s.name} className="h-full w-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20">
+                          <Building2 size={20} />
                         </div>
                       )}
+
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-display text-[16px] font-bold text-text">
+                            {s.name}
+                          </span>
+                          <span className="font-mono rounded bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
+                            slug: {s.slug}
+                          </span>
+                          {isSuspended ? (
+                            <Badge tone="error">SUSPENDED</Badge>
+                          ) : s.saleCount === 0 ? (
+                            <Badge tone="muted">PROVISIONED / NO SALES</Badge>
+                          ) : (
+                            <Badge tone="success">OPERATIONAL</Badge>
+                          )}
+                        </div>
+
+                        <div className="text-[12.5px] text-text-muted">{s.address}</div>
+
+                        {isSuspended && s.suspendedReason && (
+                          <div className="rounded-lg bg-error/10 border border-error/30 px-3 py-1.5 text-[12px] text-error font-medium">
+                            <strong>Suspension Reason:</strong> {s.suspendedReason} · {whenExact(s.suspendedAt!)}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Operational Counts */}

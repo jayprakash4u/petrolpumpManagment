@@ -6,6 +6,7 @@ import {
   Plus,
   Download,
   Printer,
+  Edit,
   FileSpreadsheet,
   Fuel,
   Car,
@@ -31,6 +32,8 @@ import { fmtRs, fmtL } from "@/lib/money";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
 import { BillDetailsModal } from "./BillDetailsModal";
 import { NewSaleModal } from "./NewSaleModal";
+import { PrintReceiptModal } from "./PrintReceiptModal";
+import { EditBillModal } from "./EditBillModal";
 import type { SalesPageData, SerializedSale, TankOption, CustomerOption } from "@/lib/queries/sales";
 
 export function SalesHubView({
@@ -49,6 +52,8 @@ export function SalesHubView({
   const [periodFilter, setPeriodFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"ALL" | "RETURNS">("ALL");
   const [selectedSale, setSelectedSale] = useState<SerializedSale | null>(null);
+  const [printingSale, setPrintingSale] = useState<SerializedSale | null>(null);
+  const [editingSale, setEditingSale] = useState<SerializedSale | null>(null);
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
@@ -256,10 +261,9 @@ export function SalesHubView({
             <Search size={16} className="text-text-muted" />
             <input
               type="text"
-              placeholder="Search bill # (e.g. SL-1025), vehicle plate (e.g. BA 2 PA 1234), customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-transparent text-[13.5px] text-text placeholder:text-text-muted/60 focus:outline-none"
+              className="w-full bg-transparent text-[13.5px] text-text focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -462,16 +466,47 @@ export function SalesHubView({
                         )}
                       </td>
                       <td className="px-3 py-3 text-right font-body">
-                        <GhostButton
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSale(s);
-                          }}
-                          className="text-[11.5px] px-2 py-0.5"
-                        >
-                          View Bill
-                        </GhostButton>
+                        <div className="flex items-center justify-end gap-1">
+                          {/* 1-Click Print Duplicate */}
+                          <GhostButton
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPrintingSale(s);
+                            }}
+                            className="px-2 py-1 text-[11.5px]"
+                            title="Print Receipt Slip"
+                          >
+                            <Printer size={13} />
+                          </GhostButton>
+
+                          {/* Quick Edit */}
+                          {!s.voided && (
+                            <GhostButton
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSale(s);
+                              }}
+                              className="px-2 py-1 text-[11.5px]"
+                              title="Edit Bill Details"
+                            >
+                              <Edit size={13} />
+                            </GhostButton>
+                          )}
+
+                          {/* Full Drawer View */}
+                          <GhostButton
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSale(s);
+                            }}
+                            className="text-[11.5px] px-2 py-1 font-semibold"
+                          >
+                            View
+                          </GhostButton>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -482,23 +517,50 @@ export function SalesHubView({
         </div>
       </div>
 
-      {/* 5. Bill Details Modal (Opens on row click or view action) */}
+      {/* 5. Bill Details Slide-Over Drawer */}
       {selectedSale && (
         <BillDetailsModal
           sale={selectedSale}
           canVoid={canVoid}
+          customers={initialData.customers}
           stationName={initialData.stationName}
+          business={initialData.invoiceConfig}
+          settings={initialData.invoiceConfig}
           onClose={() => setSelectedSale(null)}
           onSaleVoided={handleSaleVoided}
         />
       )}
 
-      {/* 6. Fast New Sale Modal (Opens on + New Sale button) */}
+      {/* 6. Print Thermal Slip Modal */}
+      {printingSale && (
+        <PrintReceiptModal
+          sale={printingSale}
+          stationName={initialData.stationName}
+          business={initialData.invoiceConfig}
+          settings={initialData.invoiceConfig}
+          onClose={() => setPrintingSale(null)}
+        />
+      )}
+
+      {/* 7. Quick Edit Bill Modal */}
+      {editingSale && (
+        <EditBillModal
+          sale={editingSale}
+          customers={initialData.customers}
+          onClose={() => setEditingSale(null)}
+          onSaved={() => {
+            // Refetched or revalidated on next load
+          }}
+        />
+      )}
+
+      {/* 8. Fast New Sale Modal (Opens on + New Sale button) */}
       {isNewSaleOpen && (
         <NewSaleModal
           tanks={initialData.tanks}
           customers={initialData.customers}
           canSell={canSell}
+          invoiceConfig={initialData.invoiceConfig}
           onClose={() => setIsNewSaleOpen(false)}
         />
       )}

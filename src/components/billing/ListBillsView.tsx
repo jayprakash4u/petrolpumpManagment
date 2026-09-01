@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import {
   ListOrdered,
+  Plus,
   Search,
   Printer,
   Download,
@@ -34,6 +35,7 @@ import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
 import { PrintReceiptModal } from "@/components/sales/PrintReceiptModal";
 import { EditBillModal } from "@/components/sales/EditBillModal";
 import { BillDetailsModal } from "@/components/sales/BillDetailsModal";
+import { NewSaleModal } from "@/components/sales/NewSaleModal";
 import { VoidSaleButton } from "@/components/sales/VoidSaleButton";
 import type { BillsPageData, SerializedBillItem } from "@/lib/queries/bills";
 import type { BillFilters } from "@/lib/bill-filters";
@@ -42,10 +44,12 @@ export function ListBillsView({
   initialData,
   filters,
   canVoid,
+  canSell = false,
 }: {
   initialData: BillsPageData;
   filters: BillFilters;
   canVoid: boolean;
+  canSell?: boolean;
 }) {
   const [bills, setBills] = useState<SerializedBillItem[]>(initialData.bills);
   const [searchQuery, setSearchQuery] = useState(filters.search || "");
@@ -58,6 +62,7 @@ export function ListBillsView({
   const [viewingBill, setViewingBill] = useState<any | null>(null);
   const [printingBill, setPrintingBill] = useState<any | null>(null);
   const [editingBill, setEditingBill] = useState<any | null>(null);
+  const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Client-side instant filter on current dataset
@@ -332,39 +337,20 @@ export function ListBillsView({
               </div>
             )}
           </div>
+
+          {canSell && (
+            <PrimaryButton
+              type="button"
+              onClick={() => setIsNewSaleOpen(true)}
+              className="text-[12.5px] px-3.5 py-2"
+            >
+              <Plus size={15} /> Create Bill (नयाँ बिल)
+            </PrimaryButton>
+          )}
         </div>
       </div>
 
-      {/* 2. Executive KPI Deck */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Net Fuel Revenue"
-          value={fmtRs(currentMetrics.netAmount)}
-          icon={TrendingUp}
-          tone="accent"
-        />
-        <StatCard
-          label="Fuel Volume Sold"
-          value={fmtL(currentMetrics.netLiters)}
-          icon={Fuel}
-          tone="text"
-        />
-        <StatCard
-          label="Billed Invoices"
-          value={`${currentMetrics.count} Bills`}
-          icon={ListOrdered}
-          tone="text"
-        />
-        <StatCard
-          label="Reversals / Voided"
-          value={`${currentMetrics.voidedCount} · ${fmtRs(currentMetrics.voidedAmount)}`}
-          icon={Ban}
-          tone="error"
-          small
-        />
-      </div>
-
-      {/* 3. Search, Filter & Slicing Command Strip */}
+      {/* 2. Search, Filter & Slicing Command Strip */}
       <div className="rounded-2xl border border-border bg-surface p-4 space-y-3 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Universal Real-Time Search Bar */}
@@ -372,10 +358,9 @@ export function ListBillsView({
             <Search size={16} className="text-text-muted" />
             <input
               type="text"
-              placeholder="Search Bill # (e.g. 1025), vehicle plate (e.g. BA 2 PA 1234), customer, attendant..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-transparent text-[13px] text-text placeholder:text-text-muted/60 focus:outline-none"
+              className="w-full bg-transparent text-[13px] text-text focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -704,7 +689,20 @@ export function ListBillsView({
         <PrintReceiptModal
           sale={printingBill}
           stationName={initialData.stationName}
+          business={initialData.invoiceConfig}
+          settings={initialData.invoiceConfig}
           onClose={() => setPrintingBill(null)}
+        />
+      )}
+
+      {/* 6.5 New Sale / Bill Creation Modal */}
+      {isNewSaleOpen && (
+        <NewSaleModal
+          isOpen={isNewSaleOpen}
+          onClose={() => setIsNewSaleOpen(false)}
+          tanks={initialData.tanks || []}
+          customers={initialData.customers}
+          invoiceConfig={initialData.invoiceConfig}
         />
       )}
 
@@ -747,6 +745,8 @@ export function ListBillsView({
           canVoid={canVoid}
           customers={initialData.customers}
           stationName={initialData.stationName}
+          business={initialData.invoiceConfig}
+          settings={initialData.invoiceConfig}
           onClose={() => setViewingBill(null)}
           onSaleVoided={(voidedId) => {
             setBills((prev) =>

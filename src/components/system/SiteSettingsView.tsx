@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   Cog,
@@ -13,6 +14,7 @@ import {
   Store,
   FileText,
   ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Input, Field } from "@/components/ui/Field";
@@ -57,9 +59,18 @@ export function SiteSettingsView() {
           </div>
         </div>
 
-        <PrimaryButton type="submit" className="text-[13px] px-4 py-2">
-          <Save size={15} /> Save Settings
-        </PrimaryButton>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/settings/invoice"
+            className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2 text-[12.5px] font-semibold text-accent hover:bg-accent/20 transition-colors"
+          >
+            <Printer size={15} /> Invoice Template Studio <ExternalLink size={13} />
+          </Link>
+
+          <PrimaryButton type="submit" className="text-[13px] px-4 py-2">
+            <Save size={15} /> Save Settings
+          </PrimaryButton>
+        </div>
       </div>
 
       {savedSuccess && (
@@ -67,6 +78,29 @@ export function SiteSettingsView() {
           <CheckCircle2 size={16} /> Site configuration and station profile saved successfully.
         </div>
       )}
+
+      {/* Prominent Logo & Invoice Customizer Callout */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-accent/40 bg-accent/10 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-white shrink-0">
+            <Printer size={22} />
+          </div>
+          <div>
+            <h3 className="text-[14px] font-bold text-text">
+              Station Logo & Master Tax Invoice Studio
+            </h3>
+            <p className="text-[12px] text-text-muted">
+              Upload your company logo, set PAN/VAT numbers, toggle invoice fields, and preview your A4/80mm printed receipt.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/settings/invoice"
+          className="shrink-0 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-[13px] font-bold text-white hover:bg-accent/90 transition-colors shadow-xs"
+        >
+          Upload Logo & Customize <ExternalLink size={14} />
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* 1. Station Legal Profile Card */}

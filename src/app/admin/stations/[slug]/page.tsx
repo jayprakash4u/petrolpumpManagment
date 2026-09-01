@@ -21,6 +21,7 @@ export default async function AdminStationDetailsPage({ params }: PageProps) {
       slug={slug}
       tenant={details.tenant}
       station={details.station}
+      invoiceConfig={details.invoiceConfig}
       stats={details.stats}
     />
   );

@@ -85,14 +85,23 @@ a:focus-visible {
 
 @media print {
   @page {
-    margin: 8mm;
+    size: auto;
+    margin: 8mm 10mm;
   }
-  /* `position: fixed` below only pins to the page if nothing between
-     .print-area and the root has a `transform` (it opens a new positioning
-     context, so fixed elements anchor to it instead of the viewport). Any
-     hidden ancestor's fade/slide animation, or a modal's transform, would
-     silently break the print layout — so strip transforms everywhere while
-     printing rather than trust every component to stay transform-free. */
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all non-printable shell elements cleanly */
   body *,
   body *::before,
   body *::after {
@@ -100,13 +109,35 @@ a:focus-visible {
     transform: none !important;
     animation: none !important;
   }
+
   .print-area,
   .print-area * {
     visibility: visible;
   }
+
   .print-area {
-    position: fixed;
-    inset: 0;
-    margin: auto;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Thermal roll override if printed on thermal printer */
+  .print-thermal-80 {
+    width: 78mm !important;
+    max-width: 78mm !important;
+    margin: 0 auto !important;
+  }
+
+  .print-thermal-58 {
+    width: 56mm !important;
+    max-width: 56mm !important;
+    margin: 0 auto !important;
   }
 }
