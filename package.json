@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "db:setup:mssql": "tsx scripts/setup-mssql.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma db push --force-reset --accept-data-loss && npm run db:seed",
     "db:migrate:tenants": "tsx scripts/migrate-tenants.ts"

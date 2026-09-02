@@ -1,11 +1,12 @@
 import "server-only";
 
 /**
- * Fixed-window login throttle to blunt password-guessing. In-memory, so it
- * resets on deploy/restart and is per-instance — fine for a single-station
- * app on a single server. If this is ever deployed across multiple
- * instances, swap the Map for a shared store (Redis/Upstash) so limits are
- * enforced globally; noted in README.
+ * Fixed-window login throttle to blunt password-guessing.
+ *
+ * In-memory — suitable for MSSQL Express on a single app server during
+ * development and early launch. Before scaling to multiple instances or a
+ * production SQL Server cluster, swap this Map for a shared store
+ * (Redis/Upstash or a small LoginAttempt table) so limits apply globally.
  */
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 10 * 60 * 1000; // 10 minutes

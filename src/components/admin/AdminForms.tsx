@@ -516,7 +516,7 @@ export function OnboardStationForm() {
                   <div className="rounded-xl border border-border bg-bg p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-text">Business Registration</span>
-                      {hasRegDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="neutral">Optional</Badge>}
+                      {hasRegDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="muted">Optional</Badge>}
                     </div>
                     <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-muted hover:text-text cursor-pointer hover:border-accent">
                       <FileCheck size={16} className="text-accent" />
@@ -528,7 +528,7 @@ export function OnboardStationForm() {
                   <div className="rounded-xl border border-border bg-bg p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-text">PAN Certificate</span>
-                      {hasPanDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="neutral">Optional</Badge>}
+                      {hasPanDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="muted">Optional</Badge>}
                     </div>
                     <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-muted hover:text-text cursor-pointer hover:border-accent">
                       <FileCheck size={16} className="text-accent" />
@@ -540,7 +540,7 @@ export function OnboardStationForm() {
                   <div className="rounded-xl border border-border bg-bg p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-text">VAT Certificate</span>
-                      {hasVatDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="neutral">Optional</Badge>}
+                      {hasVatDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="muted">Optional</Badge>}
                     </div>
                     <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-muted hover:text-text cursor-pointer hover:border-accent">
                       <FileCheck size={16} className="text-accent" />
@@ -552,7 +552,7 @@ export function OnboardStationForm() {
                   <div className="rounded-xl border border-border bg-bg p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-text">Other Supporting Document</span>
-                      {hasOtherDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="neutral">Optional</Badge>}
+                      {hasOtherDoc ? <Badge tone="success">Uploaded ✓</Badge> : <Badge tone="muted">Optional</Badge>}
                     </div>
                     <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-muted hover:text-text cursor-pointer hover:border-accent">
                       <UploadCloud size={16} className="text-text-muted" />
@@ -683,12 +683,12 @@ export function OnboardStationForm() {
 
                 {/* Logo Upload Box */}
                 <div className="rounded-xl border border-border bg-bg p-4 flex items-center gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-border bg-surface overflow-hidden p-1 shadow-inner relative">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border bg-white overflow-hidden p-1.5 shadow-sm relative">
                     {logoPreview ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={logoPreview} alt="Logo" className="max-h-full max-w-full object-contain" />
                     ) : (
-                      <Printer size={20} className="text-text-muted" />
+                      <Printer size={22} className="text-gray-400" />
                     )}
                   </div>
                   <div className="space-y-1.5 flex-1">

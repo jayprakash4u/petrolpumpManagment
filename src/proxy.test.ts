@@ -36,7 +36,7 @@ let validSignature: string;
 beforeAll(async () => {
   // Signature verifies, but names a Session row that does not exist. This is
   // exactly the state a browser is left in after its session is revoked.
-  validSignature = await new SignJWT({ sid: "session-that-no-longer-exists" })
+  validSignature = await new SignJWT({ sid: "session-that-no-longer-exists", slug: "test-pump" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(Math.floor((Date.now() + 3600_000) / 1000))
@@ -80,7 +80,7 @@ describe("cookie present but not trustworthy", () => {
   });
 
   it("sends a cookie signed with the wrong secret to the login page", async () => {
-    const forged = await new SignJWT({ sid: "x" })
+    const forged = await new SignJWT({ sid: "x", slug: "test-pump" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime(Math.floor((Date.now() + 3600_000) / 1000))

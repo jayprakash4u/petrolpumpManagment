@@ -98,22 +98,31 @@ export function SidebarContent({
 }) {
   return (
     <>
-      <div className="mb-7 flex items-center gap-2.5 px-2">
+      <div className="mb-7 flex items-center gap-3 px-2">
         {logoUrl ? (
-          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-hi p-1 shadow-2xs">
+          // object-cover, not object-contain: a real uploaded logo is
+          // usually a wide rectangular file with a small centered mark and
+          // whitespace either side (see the studio preview below, which
+          // shows it in full) — contained into this 48px square slot, that
+          // whitespace becomes most of the visible box and the mark shrinks
+          // to a speck. Cover fills the square by cropping the sides
+          // instead, which reads as an actual logo at this size.
+          <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/80 bg-white shadow-xs">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt={stationName} className="h-full w-full object-contain" />
+            <img src={logoUrl} alt={stationName} className="h-full w-full object-cover drop-shadow-2xs" />
           </div>
         ) : (
-          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg bg-accent shadow-2xs">
-            <Fuel size={18} color="#1A1306" />
+          <div className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-accent text-[#1A1306] shadow-sm">
+            <Fuel size={22} className="stroke-[2.2]" />
           </div>
         )}
-        <div className="min-w-0 font-display text-[15.5px] leading-tight font-bold text-text">
-          <div className="truncate" title={stationName}>
+        <div className="min-w-0 flex-1 font-display">
+          <div className="truncate text-[15.5px] font-bold leading-tight text-text" title={stationName}>
             {stationName}
           </div>
-          <div className="font-data text-[11px] font-normal text-text-muted">STATION CONTROL</div>
+          <div className="font-data mt-0.5 text-[10.5px] font-semibold tracking-wider text-accent uppercase">
+            STATION CONTROL
+          </div>
         </div>
       </div>
 

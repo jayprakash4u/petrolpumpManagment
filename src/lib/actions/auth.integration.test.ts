@@ -116,6 +116,30 @@ describe("tenant-aware login", () => {
     if (result.ok) expect(result.to).toBe("/dashboard");
   });
 
+  it("redirects to a safe internal path after sign-in", async () => {
+    const fd = creds("alpha-pump", SHARED, PASSWORD);
+    fd.set("next", "/sales");
+    try {
+      await loginAction({}, fd);
+      expect.fail("expected redirect");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RedirectSignal);
+      if (err instanceof RedirectSignal) expect(err.to).toBe("/sales");
+    }
+  });
+
+  it("ignores unsafe redirect targets", async () => {
+    const fd = creds("alpha-pump", SHARED, PASSWORD);
+    fd.set("next", "//evil.com");
+    try {
+      await loginAction({}, fd);
+      expect.fail("expected redirect");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RedirectSignal);
+      if (err instanceof RedirectSignal) expect(err.to).toBe("/dashboard");
+    }
+  });
+
   it("resolves the same username to a different person at each pump", async () => {
     await login("alpha-pump", SHARED, PASSWORD);
     await login("beta-pump", SHARED, PASSWORD);

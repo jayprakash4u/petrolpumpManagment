@@ -120,13 +120,13 @@ export default async function AdminStationsPage() {
                     {/* Station Meta & Logo */}
                     <div className="flex items-start gap-3.5 min-w-[260px] flex-1">
                       {s.logoUrl ? (
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xs">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white p-1.5 shadow-xs">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={s.logoUrl} alt={s.name} className="h-full w-full object-contain" />
                         </div>
                       ) : (
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20">
-                          <Building2 size={20} />
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20">
+                          <Building2 size={24} />
                         </div>
                       )}
 

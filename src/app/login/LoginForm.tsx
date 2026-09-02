@@ -8,13 +8,17 @@ import { Field, Input } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 
 const initialState: LoginState = {};
+const isDev = process.env.NODE_ENV === "development";
 
-export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStation?: string }) {
+export function LoginForm({
+  defaultStation = "",
+  redirectTo = "/dashboard",
+}: {
+  defaultStation?: string;
+  redirectTo?: string;
+}) {
   const [state, action, pending] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
-  const [station, setStation] = useState(defaultStation);
-  const [username, setUsername] = useState("prakash");
-  const [password, setPassword] = useState("password123");
 
   return (
     <div className="w-full max-w-95 animate-fade-in">
@@ -27,6 +31,8 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
       </p>
 
       <form action={action} className="mt-6 flex flex-col gap-4">
+        <input type="hidden" name="next" value={redirectTo} />
+
         <Field label="Station Code" htmlFor="station">
           <div className="relative">
             <Building2 size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -35,9 +41,8 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
               name="station"
               autoComplete="organization"
               autoFocus
-              value={station}
-              onChange={(e) => setStation(e.target.value)}
-              placeholder="shree-petroleum"
+              defaultValue={defaultStation}
+              placeholder="your-station-code"
               className="pl-9"
               required
             />
@@ -51,9 +56,7 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
               id="username"
               name="username"
               autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. prakash, anita, sita"
+              placeholder="e.g. ramesh, anita"
               className="pl-9"
               required
             />
@@ -68,8 +71,6 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
               name="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="pl-9 pr-10"
               required
@@ -92,7 +93,7 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
           >
             <AlertCircle size={17} className="mt-0.5 shrink-0 text-error" />
             <div className="flex-1">
-              <span className="font-bold">Sign-in Failed:</span> {state.error}
+              <span className="font-bold">Sign-in failed:</span> {state.error}
             </div>
           </div>
         )}
@@ -101,6 +102,12 @@ export function LoginForm({ defaultStation = "shree-petroleum" }: { defaultStati
           {pending ? "Signing in…" : "Sign In"}
         </PrimaryButton>
       </form>
+
+      {isDev && (
+        <p className="mt-4 text-center text-[11px] text-text-muted">
+          Local development: use credentials from your seed script or database setup.
+        </p>
+      )}
     </div>
   );
 }

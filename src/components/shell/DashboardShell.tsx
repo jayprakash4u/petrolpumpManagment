@@ -4,17 +4,16 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { titleForPath } from "@/lib/page-titles";
 import type { Role } from "@/lib/permissions";
 
 export function DashboardShell({
-  title,
   userName,
   userRole,
   stationName,
   logoUrl,
   children,
 }: {
-  title: string;
   userName: string;
   userRole: Role | string;
   stationName: string;
@@ -22,10 +21,12 @@ export function DashboardShell({
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Derived here rather than passed in by every layout: a sub-page like
-  // /sales/bills must highlight its own row, and a layout one level up cannot
-  // know which child is being viewed.
+  // Derived here, once, in the one shared shell — a sub-page like
+  // /sales/bills must highlight its own sidebar row and show its own
+  // section's title, and only the shell (mounted for every section) knows
+  // which page is currently active.
   const activeHref = usePathname();
+  const title = titleForPath(activeHref);
 
   return (
     <div className="flex min-h-screen bg-bg">

@@ -286,7 +286,7 @@ export function InvoiceSettingsView({
 
             {/* Logo Dropzone / Manager */}
             <div className="rounded-xl border border-border bg-bg p-4 flex items-center gap-4">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-border bg-surface overflow-hidden p-1 shadow-inner relative">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-border bg-white overflow-hidden p-2 shadow-sm relative">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -296,8 +296,8 @@ export function InvoiceSettingsView({
                   />
                 ) : (
                   <div className="text-center p-2">
-                    <Printer size={20} className="mx-auto text-text-muted mb-1" />
-                    <span className="text-[9px] text-text-muted">No Logo</span>
+                    <Printer size={22} className="mx-auto text-gray-400 mb-1" />
+                    <span className="text-[10px] text-gray-500 font-medium">No Logo</span>
                   </div>
                 )}
               </div>
@@ -436,7 +436,7 @@ export function InvoiceSettingsView({
                       </div>
                     )}
                     <div className="space-y-1.5">
-                      <Badge tone={isSelected ? "accent" : "neutral"} className="text-[10px]">
+                      <Badge tone={isSelected ? "accent" : "muted"} className="text-[10px]">
                         {t.type}
                       </Badge>
                       <h3 className="font-display text-sm font-bold text-text">

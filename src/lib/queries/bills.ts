@@ -386,7 +386,7 @@ export async function getBillsPageData(
     },
     tanks: tanks.map((t) => ({
       id: t.id,
-      name: t.name,
+      name: (t as any).name || t.fuel,
       fuel: t.fuel as FuelType,
       ratePerL: Number(t.ratePerL),
       levelL: Number(t.levelL),

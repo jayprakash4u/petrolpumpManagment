@@ -51,9 +51,11 @@ async function ensureStationInvoiceSchema(tenantDb: any) {
           CREATE TABLE [dbo].[StationInvoiceSettings] (
               [id] NVARCHAR(1000) NOT NULL PRIMARY KEY,
               [stationId] NVARCHAR(1000) NOT NULL UNIQUE,
+              [templateId] NVARCHAR(50) NOT NULL DEFAULT 'A4_DETAILED',
               [showPan] BIT NOT NULL DEFAULT 1,
               [showVat] BIT NOT NULL DEFAULT 1,
               [showVehicle] BIT NOT NULL DEFAULT 1,
+              [showHsCode] BIT NOT NULL DEFAULT 1,
               [showCustomerAddress] BIT NOT NULL DEFAULT 1,
               [showCustomerPan] BIT NOT NULL DEFAULT 1,
               [showCustomerPhone] BIT NOT NULL DEFAULT 1,
@@ -63,6 +65,7 @@ async function ensureStationInvoiceSchema(tenantDb: any) {
               [showDiscount] BIT NOT NULL DEFAULT 1,
               [showQrCode] BIT NOT NULL DEFAULT 1,
               [showRate] BIT NOT NULL DEFAULT 1,
+              [showLogo] BIT NOT NULL DEFAULT 1,
               [primaryColor] NVARCHAR(100) NOT NULL DEFAULT '#1B4D8C',
               [accentColor] NVARCHAR(100) NOT NULL DEFAULT '#F59E0B',
               [paperSize] NVARCHAR(50) NOT NULL DEFAULT 'A4',
@@ -72,6 +75,25 @@ async function ensureStationInvoiceSchema(tenantDb: any) {
               [createdAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
               [updatedAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
+      END;
+
+      -- Columns added after the table first shipped — guarded the same way
+      -- as the Station columns above, so a tenant whose table predates them
+      -- self-heals instead of failing every save with "Invalid column name".
+      IF EXISTS (SELECT * FROM sys.tables WHERE name = 'StationInvoiceSettings')
+      BEGIN
+          IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StationInvoiceSettings' AND COLUMN_NAME = 'templateId')
+          BEGIN
+              ALTER TABLE [dbo].[StationInvoiceSettings] ADD [templateId] NVARCHAR(50) NOT NULL DEFAULT 'A4_DETAILED';
+          END;
+          IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StationInvoiceSettings' AND COLUMN_NAME = 'showHsCode')
+          BEGIN
+              ALTER TABLE [dbo].[StationInvoiceSettings] ADD [showHsCode] BIT NOT NULL DEFAULT 1;
+          END;
+          IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'StationInvoiceSettings' AND COLUMN_NAME = 'showLogo')
+          BEGIN
+              ALTER TABLE [dbo].[StationInvoiceSettings] ADD [showLogo] BIT NOT NULL DEFAULT 1;
+          END;
       END;
     `);
   } catch (e) {
@@ -408,7 +430,7 @@ export async function deleteStationLogoAction(): Promise<{ success: boolean; err
     user.role !== "MANAGER" &&
     (user.role as string) !== "OWNER"
   ) {
-    return { error: "Permission denied." };
+    return { success: false, error: "Permission denied." };
   }
 
   try {
@@ -438,6 +460,6 @@ export async function deleteStationLogoAction(): Promise<{ success: boolean; err
 
     return { success: true };
   } catch (err) {
-    return { error: "Failed to remove logo." };
+    return { success: false, error: "Failed to remove logo." };
   }
 }

@@ -143,6 +143,7 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
   // Local Form state for interactive real-time invoice preview
   const [liveConfig, setLiveConfig] = useState<MergedStationInvoiceConfig>(
     invoiceConfig || {
+      name: tenant.name,
       stationName: tenant.name,
       companyName: tenant.companyName || "",
       address: tenant.address,
@@ -152,13 +153,13 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
       vatNo: station?.vatNo || "",
       dealerCode: station?.dealerCode || "",
       logoUrl: station?.logoUrl || null,
+      templateId: "A4_DETAILED",
 
       showLogo: true,
-      logoPosition: "CENTER",
-      logoSize: "MEDIUM",
       showPan: true,
       showVat: true,
       showVehicle: true,
+      showHsCode: true,
       showCustomerAddress: true,
       showCustomerPan: true,
       showCustomerPhone: true,
@@ -577,7 +578,7 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-border bg-bg overflow-hidden p-1 relative shadow-inner">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-border bg-white overflow-hidden p-2 relative shadow-sm">
                     {liveConfig.logoUrl ? (
                       <img
                         src={liveConfig.logoUrl}
@@ -586,8 +587,8 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
                       />
                     ) : (
                       <div className="text-center p-2">
-                        <Printer size={20} className="mx-auto text-text-muted mb-1" />
-                        <span className="text-[9.5px] text-text-muted">No Logo</span>
+                        <Printer size={22} className="mx-auto text-gray-400 mb-1" />
+                        <span className="text-[10px] text-gray-500 font-medium">No Logo</span>
                       </div>
                     )}
                   </div>
@@ -981,7 +982,7 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-text text-sm">{u.name}</span>
-                              <Badge tone={isOwner ? "accent" : "neutral"}>
+                              <Badge tone={isOwner ? "accent" : "muted"}>
                                 {u.role}
                               </Badge>
                               {!u.active && <Badge tone="error">INACTIVE</Badge>}

@@ -9,6 +9,7 @@ import { getTenantDb } from "@/lib/tenant-db";
 import { createSession, destroySession } from "@/lib/session";
 import { requireSession } from "@/lib/dal";
 import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
+import { safeInternalPath } from "@/lib/auth-redirect";
 import { normalizeSlug } from "@/lib/tenant";
 import { normalizeUsername } from "@/lib/username";
 
@@ -97,7 +98,8 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     return { error: "Invalid station code, username, or password." };
   }
 
-  redirect("/dashboard");
+  const next = safeInternalPath(formData.get("next"), "/dashboard");
+  redirect(next);
 }
 
 export async function logoutAction(): Promise<void> {

@@ -15,9 +15,41 @@
  */
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const masterUrl = "sqlserver://localhost:1435;database=FuelStationMasterDB;user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true";
-const tenantUrl = "sqlserver://localhost:1435;database=FuelStation_shree_petroleum;user=fsm_dev;password=FuelStation2026Password!;trustServerCertificate=true";
+function loadEnvFile() {
+  const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
+loadEnvFile();
+
+const host = process.env.SQL_SERVER_HOST || "localhost:1435";
+const user = process.env.SQL_SERVER_USER || "fsm_dev";
+const pass = process.env.SQL_SERVER_PASS || "FuelStation2026Password!";
+const masterDb = process.env.MASTER_DB_NAME || "FuelStationMasterDB";
+const tenantDb = process.env.TENANT_DB_NAME || "FuelStation_shree_petroleum";
+
+function buildUrl(dbName: string): string {
+  return `sqlserver://${host};database=${dbName};user=${user};password=${pass};trustServerCertificate=true;connectionTimeout=15000;connectTimeout=15000;`;
+}
+
+const masterUrl = buildUrl(masterDb);
+const tenantUrl = buildUrl(tenantDb);
 
 const masterPrisma = new PrismaClient({ datasources: { db: { url: masterUrl } } });
 const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantUrl } } });
@@ -30,7 +62,7 @@ async function main() {
   console.log("==================================================");
 
   const passwordHash = await bcrypt.hash("password123", 10);
-  const adminPasswordHash = await bcrypt.hash("SuperAdmin2026!", 10);
+  const adminPasswordHash = await bcrypt.hash("admin12345", 10);
 
   // ----------------------------------------------------------------
   // 1. MASTER DB: FuelStationMasterDB
@@ -61,7 +93,7 @@ async function main() {
       name: "Shree Petroleum",
       companyName: "Shree Petroleum & Fuel Traders Pvt. Ltd.",
       databaseName: "FuelStation_shree_petroleum",
-      databaseServer: "localhost:1435",
+      databaseServer: host,
       status: "ACTIVE",
       phone: "+977 1 4455660",
       email: "info@shreepetroleum.test",
@@ -71,7 +103,7 @@ async function main() {
       name: "Shree Petroleum",
       companyName: "Shree Petroleum & Fuel Traders Pvt. Ltd.",
       databaseName: "FuelStation_shree_petroleum",
-      databaseServer: "localhost:1435",
+      databaseServer: host,
       status: "ACTIVE",
     },
   });
@@ -302,7 +334,7 @@ async function main() {
   console.log("🎉 Database-Per-Tenant Seed Completed Successfully!");
   console.log("==================================================");
   console.log("Master DB [FuelStationMasterDB]:");
-  console.log("  - Super Admin: username = 'admin' (password: 'SuperAdmin2026!')");
+  console.log("  - Super Admin: username = 'admin' (password: 'admin12345')");
   console.log("  - Tenant Registered: 'Shree Petroleum' -> DB [FuelStation_shree_petroleum]");
   console.log("\nStation DB [FuelStation_shree_petroleum]:");
   console.log("  - Station Code: shree-petroleum (Password: password123)");

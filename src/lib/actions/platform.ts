@@ -51,27 +51,39 @@ export async function adminLoginAction(_prev: AdminLoginState, formData: FormDat
     return { error: `Too many attempts. Try again in ${Math.ceil((rl.retryAfterSec ?? 60) / 60)} minute(s).` };
   }
 
-  const master = getMasterDb();
-  const admin = await master.platformAdmin.findUnique({ where: { username } });
+  try {
+    const master = getMasterDb();
+    const admin = await master.platformAdmin.findUnique({ where: { username } });
 
-  if (!admin || !admin.active) {
-    await bcrypt.compare(parsed.data.password, DUMMY_HASH);
-    return { error: "Invalid username or password." };
+    if (!admin || !admin.active) {
+      await bcrypt.compare(parsed.data.password, DUMMY_HASH);
+      return { error: "Invalid username or password." };
+    }
+
+    if (!(await bcrypt.compare(parsed.data.password, admin.passwordHash))) {
+      return { error: "Invalid username or password." };
+    }
+
+    resetLoginRateLimit(`platform:${ip}:${username}`);
+    await createAdminSession(admin.id, {
+      userAgent: headerList.get("user-agent") ?? undefined,
+      ipAddress: ip,
+    });
+
+    await master.platformAuditLog.create({
+      data: { actorId: admin.id, action: "ADMIN_SIGNED_IN", entityType: "PlatformAdmin", entityId: admin.id },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("does not exist")) {
+      return {
+        error:
+          "Platform database is not set up yet. Stop the dev server, run npm run db:setup:mssql from the project root, then restart.",
+      };
+    }
+    console.error("adminLoginAction failed:", err);
+    return { error: "Could not reach the platform database. Check SQL Server is running and .env settings." };
   }
-
-  if (!(await bcrypt.compare(parsed.data.password, admin.passwordHash))) {
-    return { error: "Invalid username or password." };
-  }
-
-  resetLoginRateLimit(`platform:${ip}:${username}`);
-  await createAdminSession(admin.id, {
-    userAgent: headerList.get("user-agent") ?? undefined,
-    ipAddress: ip,
-  });
-
-  await master.platformAuditLog.create({
-    data: { actorId: admin.id, action: "ADMIN_SIGNED_IN", entityType: "PlatformAdmin", entityId: admin.id },
-  });
 
   redirect("/admin");
 }
@@ -705,23 +717,12 @@ export async function updateStationInvoiceByAdminAction(
     stationName: formData.get("stationName")?.toString() || "",
     companyName: formData.get("companyName")?.toString() || undefined,
     address: formData.get("address")?.toString() || "",
-    phone: formData.get("phone")?.toString() || undefined,
-    email: formData.get("email")?.toString() || undefined,
-    panNo: formData.get("panNo")?.toString() || undefined,
-    vatNo: formData.get("vatNo")?.toString() || undefined,
-    dealerCode: formData.get("dealerCode")?.toString() || undefined,
-    logoUrl: formData.get("logoUrl")?.toString() || undefined,
-
-    // 1. Station Profile
-    stationName: formData.get("stationName")?.toString() || "",
-    address: formData.get("address")?.toString() || "",
     phone: formData.get("phone")?.toString() || "",
+    email: formData.get("email")?.toString() || undefined,
     panNo: formData.get("panNo")?.toString() || "",
     vatNo: formData.get("vatNo")?.toString() || "",
-    logoUrl: formData.get("logoUrl")?.toString() || undefined,
-    companyName: formData.get("companyName")?.toString() || undefined,
-    email: formData.get("email")?.toString() || undefined,
     dealerCode: formData.get("dealerCode")?.toString() || undefined,
+    logoUrl: formData.get("logoUrl")?.toString() || undefined,
 
     // 2. Invoice Template Selection
     templateId: formData.get("templateId")?.toString() || "A4_DETAILED",

@@ -698,10 +698,15 @@ export function ListBillsView({
       {/* 6.5 New Sale / Bill Creation Modal */}
       {isNewSaleOpen && (
         <NewSaleModal
-          isOpen={isNewSaleOpen}
           onClose={() => setIsNewSaleOpen(false)}
-          tanks={initialData.tanks || []}
+          tanks={(initialData.tanks || []).map((t) => ({
+            id: t.id,
+            fuel: t.fuel as any,
+            ratePerL: String(t.ratePerL),
+            levelL: String(t.levelL),
+          }))}
           customers={initialData.customers}
+          canSell={canSell}
           invoiceConfig={initialData.invoiceConfig}
         />
       )}

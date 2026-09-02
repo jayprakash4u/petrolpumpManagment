@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { OfflineSyncService } from "@/lib/services/offline-sync-service";
-import { requireUser } from "@/lib/dal";
+import { getCurrentUser } from "@/lib/dal";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUser();
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await req.json();
 
     const result = await OfflineSyncService.syncBatch({

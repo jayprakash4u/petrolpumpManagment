@@ -69,12 +69,12 @@ export function TaxInvoice({
   const st = config;
   const s = config;
 
-  const rawGrand = receipt.grandTotal ?? receipt.total ?? (receipt as any).totalAmount ?? "0";
-  const grandTotalStr = typeof rawGrand === "number" ? rawGrand.toFixed(2) : String(rawGrand || "0");
+  const rawGrand = (receipt as any).grandTotal ?? (receipt as any).total ?? (receipt as any).totalAmount ?? "0";
+  const grandTotalStr = typeof rawGrand === "number" ? (rawGrand as number).toFixed(2) : String(rawGrand || "0");
   const grandTotalNum = Number(grandTotalStr.replace(/[^0-9.]/g, "")) || 0;
 
-  const rawTotal = receipt.total ?? receipt.grandTotal ?? (receipt as any).totalAmount ?? grandTotalStr;
-  const totalStr = typeof rawTotal === "number" ? rawTotal.toFixed(2) : String(rawTotal || "0");
+  const rawTotal = (receipt as any).total ?? (receipt as any).grandTotal ?? (receipt as any).totalAmount ?? grandTotalStr;
+  const totalStr = typeof rawTotal === "number" ? (rawTotal as number).toFixed(2) : String(rawTotal || "0");
   const totalNum = Number(totalStr.replace(/[^0-9.]/g, "")) || grandTotalNum;
 
   // Calculate standard tax breakdown
@@ -126,17 +126,19 @@ export function TaxInvoice({
         )}
       >
         <div className="text-center pb-2 border-b border-black">
-          {st.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={st.logoUrl}
-              alt="Logo"
-              className="mx-auto mb-1 max-h-8 max-w-[90px] object-contain"
-            />
-          ) : (
-            <div className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black text-[9px] font-bold mx-auto mb-1">
-              3B
-            </div>
+          {s.showLogo !== false && (
+            st.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={st.logoUrl}
+                alt={st.name || "Station Logo"}
+                className="mx-auto mb-1.5 max-h-12 max-w-[130px] h-auto w-auto object-contain"
+              />
+            ) : (
+              <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black text-[10px] font-bold mx-auto mb-1">
+                3B
+              </div>
+            )
           )}
           <div className="font-bold text-[12px] uppercase">{st.name}</div>
           <div className="text-[9px]">{st.address}</div>
@@ -236,17 +238,19 @@ export function TaxInvoice({
       >
         {/* Header */}
         <div className="text-center pb-3 border-b border-black">
-          {st.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={st.logoUrl}
-              alt="Logo"
-              className="mx-auto mb-1.5 max-h-10 max-w-[120px] object-contain"
-            />
-          ) : (
-            <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black text-[11px] font-bold mx-auto mb-1">
-              3B
-            </div>
+          {s.showLogo !== false && (
+            st.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={st.logoUrl}
+                alt={st.name || "Station Logo"}
+                className="mx-auto mb-2 max-h-16 max-w-[180px] h-auto w-auto object-contain"
+              />
+            ) : (
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-[12px] font-bold mx-auto mb-1.5">
+                3B
+              </div>
+            )
           )}
           <div className="font-bold text-[14px] uppercase tracking-wide">
             {st.name}
@@ -388,25 +392,27 @@ export function TaxInvoice({
     >
       {/* Top Header Center */}
       <div className="text-center relative pb-3">
-        {/* Centered Circular Logo Emblem */}
-        <div className="flex justify-center mb-2">
-          {st.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={st.logoUrl}
-              alt="Logo"
-              className="h-16 w-16 rounded-full border border-black object-contain p-1"
-            />
-          ) : (
-            <div className="h-14 w-14 rounded-full border-2 border-black flex flex-col items-center justify-center text-center p-1 leading-none shadow-2xs">
-              <span className="text-[7px] uppercase tracking-tighter font-semibold">
-                NEPAL
-              </span>
-              <span className="text-[13px] font-bold tracking-tight">3B</span>
-              <span className="text-[7px] uppercase tracking-tighter">OIL</span>
-            </div>
-          )}
-        </div>
+        {/* Centered Logo Emblem */}
+        {s.showLogo !== false && (
+          <div className="flex justify-center mb-3">
+            {st.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={st.logoUrl}
+                alt={st.name || "Station Logo"}
+                className="max-h-24 max-w-[280px] h-auto w-auto object-contain drop-shadow-2xs print:drop-shadow-none"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-full border-2 border-black flex flex-col items-center justify-center text-center p-1 leading-none shadow-2xs">
+                <span className="text-[8px] uppercase tracking-tighter font-semibold">
+                  NEPAL
+                </span>
+                <span className="text-[15px] font-bold tracking-tight">3B</span>
+                <span className="text-[8px] uppercase tracking-tighter">OIL</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Station Legal Heading */}
         <h1 className="font-serif text-[20px] font-bold tracking-wide uppercase text-black leading-tight">

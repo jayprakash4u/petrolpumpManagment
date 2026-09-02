@@ -6,9 +6,9 @@ export type PaperSize = "A4" | "80MM" | "58MM" | "A5";
 export interface StationBusinessProfile {
   name: string;
   address: string;
-  phone: string;
-  panNo: string;
-  vatNo: string;
+  phone?: string | null;
+  panNo?: string | null;
+  vatNo?: string | null;
   logoUrl?: string | null;
   companyName?: string | null;
   email?: string | null;
@@ -27,6 +27,16 @@ export interface StationInvoiceSettings {
   showSignature: boolean;
   showLogo: boolean;
   footerGreeting: string;
+  showCustomerPan?: boolean;
+  showCustomerPhone?: boolean;
+  showPaymentMode?: boolean;
+  showDiscount?: boolean;
+  showQrCode?: boolean;
+  showRate?: boolean;
+  primaryColor?: string;
+  accentColor?: string;
+  headerTitle?: string;
+  termsNotes?: string | null;
 }
 
 export interface MergedStationInvoiceConfig extends StationBusinessProfile, StationInvoiceSettings {
@@ -122,6 +132,16 @@ export const InvoiceSettingsSchema = z.object({
   showSignature: z.boolean().default(true),
   showLogo: z.boolean().default(true),
   footerGreeting: z.string().trim().default("Thank you for fueling with us! Safe Journey."),
+  showCustomerPan: z.boolean().default(true),
+  showCustomerPhone: z.boolean().default(false),
+  showPaymentMode: z.boolean().default(true),
+  showDiscount: z.boolean().default(true),
+  showQrCode: z.boolean().default(true),
+  showRate: z.boolean().default(true),
+  primaryColor: z.string().trim().default("#10B981"),
+  accentColor: z.string().trim().default("#F59E0B"),
+  headerTitle: z.string().trim().default("TAX INVOICE"),
+  termsNotes: z.string().trim().optional().nullable(),
 });
 
 export function mergeInvoiceConfig(
@@ -158,5 +178,15 @@ export function mergeInvoiceConfig(
     showSignature: settings?.showSignature !== undefined ? Boolean(settings.showSignature) : true,
     showLogo: settings?.showLogo !== undefined ? Boolean(settings.showLogo) : true,
     footerGreeting: settings?.footerGreeting || DEFAULT_INVOICE_SETTINGS.footerGreeting,
+    showCustomerPan: settings?.showCustomerPan !== undefined ? Boolean(settings.showCustomerPan) : true,
+    showCustomerPhone: settings?.showCustomerPhone !== undefined ? Boolean(settings.showCustomerPhone) : false,
+    showPaymentMode: settings?.showPaymentMode !== undefined ? Boolean(settings.showPaymentMode) : true,
+    showDiscount: settings?.showDiscount !== undefined ? Boolean(settings.showDiscount) : true,
+    showQrCode: settings?.showQrCode !== undefined ? Boolean(settings.showQrCode) : true,
+    showRate: settings?.showRate !== undefined ? Boolean(settings.showRate) : true,
+    primaryColor: settings?.primaryColor || "#10B981",
+    accentColor: settings?.accentColor || "#F59E0B",
+    headerTitle: settings?.headerTitle || "TAX INVOICE",
+    termsNotes: settings?.termsNotes ?? null,
   };
 }

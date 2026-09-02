@@ -28,10 +28,6 @@ async function verifySessionToken(token: string): Promise<{ sid: string; slug: s
     if (typeof p.sid === "string" && typeof p.slug === "string") {
       return { sid: p.sid, slug: p.slug };
     }
-    // Backward compatibility for tokens without slug (defaults to shree-petroleum)
-    if (typeof p.sid === "string") {
-      return { sid: p.sid, slug: "shree-petroleum" };
-    }
     return null;
   } catch {
     return null;
@@ -74,32 +70,25 @@ export async function readSession() {
     const tenantDb = await getTenantDb(verified.slug);
     const session = await tenantDb.session.findUnique({
       where: { id: verified.sid },
-      include: { user: { include: { station: { select: { name: true, address: true, suspendedAt: true } } } } },
+      include: {
+        user: {
+          include: {
+            station: { select: { name: true, address: true, suspendedAt: true, logoUrl: true } },
+          },
+        },
+      },
     });
 
     if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
     if (!session.user.active) return null;
     if (session.user.station.suspendedAt !== null) return null;
 
-    // Attach logoUrl safely from database if available
-    let logoUrl: string | null = null;
-    try {
-      const rows: any[] = await tenantDb.$queryRawUnsafe(
-        `SELECT TOP 1 [logoUrl] FROM [dbo].[Station] WHERE [slug] = '${verified.slug.replace(/'/g, "''")}'`
-      );
-      if (rows && rows.length > 0) {
-        const row = rows[0];
-        logoUrl = row.logoUrl ?? row.LOGOURL ?? row.logourl ?? Object.values(row)[0] ?? null;
-      }
-    } catch {}
-    (session.user.station as any).logoUrl = logoUrl;
-
     return {
       sessionId: session.id,
       sessionCreatedAt: session.createdAt,
       userAgent: session.userAgent,
       ipAddress: session.ipAddress,
-      user: session.user as typeof session.user & { station: { name: string; address: string; suspendedAt: Date | null; logoUrl: string | null } },
+      user: session.user,
       tenantSlug: verified.slug,
     };
   } catch (err) {
