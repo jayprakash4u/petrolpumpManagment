@@ -7,16 +7,14 @@ import { PurchaseSubnav } from "@/components/purchases/PurchaseSubnav";
 import { PurchaseRegisterView } from "@/components/purchases/PurchaseRegisterView";
 import { getPurchaseRegisterData, parsePurchaseRegisterFilters, recentFiscalYears } from "@/lib/queries/purchase-register";
 
-export default async function PurchaseReportPage({ searchParams }: PageProps<"/purchases/report">) {
+export default async function PetrolDieselPurchaseReportPage({ searchParams }: PageProps<"/purchases/report/combined">) {
   const user = await requireUser();
 
   if (!can(user.role, "viewReports")) {
     return (
       <Card className="mx-auto max-w-md text-center">
         <h2 className="font-display text-[17px] font-semibold text-text">Purchase register is restricted</h2>
-        <p className="mt-1.5 text-[13.5px] text-text-muted">
-          Only an owner or manager can view the purchase register and its VAT breakdown.
-        </p>
+        <p className="mt-1.5 text-[13.5px] text-text-muted">Only an owner or manager can view this report.</p>
       </Card>
     );
   }
@@ -32,8 +30,8 @@ export default async function PurchaseReportPage({ searchParams }: PageProps<"/p
       <Card>
         <SectionTitle
           icon={FileBarChart2}
-          title="Purchase Register"
-          subtitle="Every fuel bill recorded, with its subtotal, VAT, and landed total — by fiscal year or date range"
+          title="Petrol Diesel Purchase Report"
+          subtitle="Petrol and Diesel bills together — subtotal, VAT, and landed total"
         />
         <PurchaseRegisterView data={data} filters={filters} fiscalYears={recentFiscalYears()} />
       </Card>

@@ -100,7 +100,7 @@ export function FuelPurchasesTable({ deliveries }: { deliveries: FuelPurchaseRow
                     <td
                       className={
                         "px-3 py-3 text-right font-data text-[12px] font-semibold " +
-                        (d.margin === null ? "text-text-muted" : d.margin.isNegative() ? "text-error" : "text-success")
+                        (d.margin === null ? "text-text-muted" : Number(d.margin) < 0 ? "text-error" : "text-success")
                       }
                     >
                       {d.margin ? fmtRate(d.margin) : "—"}

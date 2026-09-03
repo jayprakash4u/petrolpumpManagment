@@ -369,4 +369,109 @@ BEGIN
 END;
 `,
   },
+  {
+    id: "008_purchase_landed_cost",
+    description: "Purchase Bill Entry: NOC bill detail (tanker/density/temperature/rate/VAT/scans), plus optional insurance and transportation charges, on the existing Purchase row.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'purchaseDateBS')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [purchaseDateBS] NVARCHAR(20) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'tankerNo')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [tankerNo] NVARCHAR(100) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'density')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [density] DECIMAL(6, 3) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'temperature')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [temperature] DECIMAL(6, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'ratePerL')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [ratePerL] DECIMAL(10, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'subTotal')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [subTotal] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'vatAmount')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [vatAmount] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'invoiceImageUrl')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [invoiceImageUrl] NVARCHAR(MAX) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'scannedBillUrl')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [scannedBillUrl] NVARCHAR(MAX) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'insuranceBillNo')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [insuranceBillNo] NVARCHAR(100) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'insuranceCost')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [insuranceCost] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'insuranceStamp')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [insuranceStamp] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'insuranceTotal')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [insuranceTotal] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'transporterName')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [transporterName] NVARCHAR(200) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'transportBillNo')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [transportBillNo] NVARCHAR(100) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'transportCost')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [transportCost] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'transportTotal')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [transportTotal] DECIMAL(12, 2) NULL;
+END;
+
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'remarks')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [remarks] NVARCHAR(1000) NULL;
+END;
+`,
+  },
+  {
+    id: "009_purchase_supplier_pan",
+    description: "Purchase.supplierPan — the fuel supplier's PAN number, captured alongside the supplier name on the bill.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Purchase' AND COLUMN_NAME = 'supplierPan')
+BEGIN
+    ALTER TABLE [dbo].[Purchase] ADD [supplierPan] NVARCHAR(50) NULL;
+END;
+`,
+  },
 ];

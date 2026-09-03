@@ -1,84 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, Warehouse, CheckCircle2, ShieldCheck, Wrench, Check, Search, Filter } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { Plus, X, Warehouse, CheckCircle2, Search, Filter } from "lucide-react";
 import type { FixedAsset } from "@/lib/purchases";
 import { fmtRs } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
-import { PrimaryButton, GhostButton } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { PrimaryButton } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Field";
 
 const STORAGE_KEY = "fsm_fixed_assets";
 
 export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
-  const [list, setList] = useState<FixedAsset[]>(assets);
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
+  // Read once, synchronously, as the initial value, so an asset just added
+  // on the full-page form is there on the very first render.
+  const [list] = useState<FixedAsset[]>(() => {
+    if (typeof window === "undefined") return assets;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setList(parsed);
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-  }, []);
-
-  const saveList = (updated: FixedAsset[]) => {
-    setList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
-  };
-
-  // Form state
-  const [name, setName] = useState("");
-  const [tag, setTag] = useState("");
-  const [category, setCategory] = useState<string>("Dispensers & Pumps");
-  const [customCategory, setCustomCategory] = useState("");
-  const [brandModel, setBrandModel] = useState("");
-  const [serialNo, setSerialNo] = useState("");
-  const [dateBS, setDateBS] = useState("2083-05-03");
-  const [cost, setCost] = useState("250000");
-  const [vendor, setVendor] = useState("Himalayan Petroleum Equipment");
-  const [location, setLocation] = useState("Station Forecourt");
-
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalCategory = category === "Other" ? (customCategory.trim() || "Station Equipment") : category;
-
-    const newAsset: FixedAsset = {
-      id: `ast-${Date.now()}`,
-      assetTag: tag.trim() || `AST-CAP-${String(list.length + 1).padStart(2, "0")}`,
-      name: name.trim(),
-      category: finalCategory,
-      brandModel: brandModel.trim(),
-      serialNo: serialNo.trim(),
-      purchaseDateBS: dateBS,
-      purchaseCostNpr: parseFloat(cost) || 0,
-      vendorName: vendor.trim(),
-      currentCondition: "Optimal",
-      warrantyExpiryBS: "2088-05-03",
-      location: location.trim(),
-    };
-
-    saveList([newAsset, ...list]);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setModalOpen(false);
-      setName("");
-      setTag("");
-      setBrandModel("");
-      setSerialNo("");
-      setCustomCategory("");
-    }, 1000);
-  };
+    return assets;
+  });
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const categories = Array.from(
     new Set([
@@ -158,10 +106,12 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
           <span className="text-xs text-text-muted">
             Valuation: <strong className="font-data text-accent">{fmtRs(totalCapValue)}</strong>
           </span>
-          <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
-            <Plus size={15} />
-            Add Fixed Asset
-          </PrimaryButton>
+          <Link href="/purchases/assets/new">
+            <PrimaryButton type="button" className="gap-1.5 text-xs">
+              <Plus size={15} />
+              Add Fixed Asset
+            </PrimaryButton>
+          </Link>
         </div>
       </div>
 
@@ -185,7 +135,7 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
                 <td colSpan={8} className="px-3 py-10 text-center text-xs text-text-muted">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Warehouse size={24} className="text-text-muted/40" />
-                    <span>No assets match "{searchQuery || categoryFilter}".</span>
+                    <span>No assets match &ldquo;{searchQuery || categoryFilter}&rdquo;.</span>
                   </div>
                 </td>
               </tr>
@@ -232,149 +182,6 @@ export function FixedAssetsTable({ assets }: { assets: FixedAsset[] }) {
           </tbody>
         </table>
       </div>
-
-      {/* Add Asset Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-fade-in">
-            <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
-                  <Warehouse size={18} />
-                </div>
-                <div>
-                  <h3 className="font-display text-base font-bold text-text">Register Fixed Asset</h3>
-                  <p className="text-xs text-text-muted">Record new station equipment or infrastructure</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="cursor-pointer rounded-lg p-1 text-text-muted hover:bg-surface-hi hover:text-text"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {submitted ? (
-              <div className="py-8 text-center animate-fade-in">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success/20 text-success">
-                  <Check size={24} />
-                </div>
-                <h4 className="font-display text-base font-semibold text-text">Asset Cataloged</h4>
-                <p className="mt-1 text-xs text-text-muted">{name} has been added to fixed assets.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleAdd} className="flex flex-col gap-4">
-                <Field label="Asset / Equipment Name">
-                  <Input
-                    placeholder="e.g. Tokheim Quantium Multi-Product Dispenser"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Category">
-                    <Select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="Dispensers & Pumps">Dispensers & Pumps</option>
-                      <option value="Storage Tanks">Storage Tanks</option>
-                      <option value="Power & Generator">Power & Generator</option>
-                      <option value="Security & POS IT">Security & POS IT</option>
-                      <option value="Canopy & Civil">Canopy & Civil</option>
-                      <option value="Other">Other (Specify)</option>
-                    </Select>
-                  </Field>
-                  <Field label="Asset Tag / ID">
-                    <Input
-                      placeholder="e.g. AST-DISP-03"
-                      value={tag}
-                      onChange={(e) => setTag(e.target.value)}
-                    />
-                  </Field>
-                </div>
-
-                {category === "Other" && (
-                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-                    <Field label="Custom Asset Category">
-                      <Input
-                        placeholder="e.g. Air Compressor, CCTV System, Fire Extinguishers"
-                        value={customCategory}
-                        onChange={(e) => setCustomCategory(e.target.value)}
-                        required
-                        autoFocus
-                      />
-                    </Field>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Brand / Model">
-                    <Input
-                      placeholder="e.g. Tokheim 510"
-                      value={brandModel}
-                      onChange={(e) => setBrandModel(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Serial Number">
-                    <Input
-                      placeholder="e.g. TKH-2024-99120"
-                      value={serialNo}
-                      onChange={(e) => setSerialNo(e.target.value)}
-                      required
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Purchase Cost (NPR)">
-                    <Input
-                      type="number"
-                      value={cost}
-                      onChange={(e) => setCost(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Installation Date (BS)">
-                    <Input value={dateBS} onChange={(e) => setDateBS(e.target.value)} required />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Supplier / Vendor">
-                    <Input
-                      placeholder="e.g. Himalayan Petro Equipment"
-                      value={vendor}
-                      onChange={(e) => setVendor(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Physical Location">
-                    <Input
-                      placeholder="e.g. Island 03 (East Forecourt)"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      required
-                    />
-                  </Field>
-                </div>
-
-                <div className="mt-2 flex items-center justify-end gap-2.5">
-                  <GhostButton type="button" onClick={() => setModalOpen(false)}>
-                    Cancel
-                  </GhostButton>
-                  <PrimaryButton type="submit">Save Asset</PrimaryButton>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

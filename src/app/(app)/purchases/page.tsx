@@ -135,7 +135,7 @@ export default async function PurchaseOverviewPage() {
             </div>
             <ChevronRight size={16} className="text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
           </div>
-          <h3 className="font-display text-[15px] font-bold text-text group-hover:text-accent">Fuel Purchases</h3>
+          <h3 className="font-display text-[15px] font-bold text-text group-hover:text-accent">Purchase Bill Entry</h3>
           <p className="mt-1 text-xs text-text-muted">
             Tanker truck decantation ledger, NOC challan tracking, and density/temperature verification logs.
           </p>

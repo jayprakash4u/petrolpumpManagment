@@ -136,7 +136,7 @@ export function TaxInvoice({
               />
             ) : (
               <div className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black text-[10px] font-bold mx-auto mb-1">
-                3B
+                {(st.name || "?").charAt(0).toUpperCase()}
               </div>
             )
           )}
@@ -248,7 +248,7 @@ export function TaxInvoice({
               />
             ) : (
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-[12px] font-bold mx-auto mb-1.5">
-                3B
+                {(st.name || "?").charAt(0).toUpperCase()}
               </div>
             )
           )}
@@ -372,7 +372,7 @@ export function TaxInvoice({
         )}
 
         <div className="text-center text-[9px] text-gray-500 pt-1 border-t border-gray-300">
-          Computer Generated Invoice · Printed By: {receipt.soldBy || "ADMIN"}
+          Computer Generated Invoice · Printed By: {receipt.soldBy || "STAFF"}
         </div>
       </div>
     );
@@ -403,12 +403,10 @@ export function TaxInvoice({
                 className="max-h-24 max-w-[280px] h-auto w-auto object-contain drop-shadow-2xs print:drop-shadow-none"
               />
             ) : (
-              <div className="h-16 w-16 rounded-full border-2 border-black flex flex-col items-center justify-center text-center p-1 leading-none shadow-2xs">
-                <span className="text-[8px] uppercase tracking-tighter font-semibold">
-                  NEPAL
+              <div className="h-16 w-16 rounded-full border-2 border-black flex items-center justify-center shadow-2xs">
+                <span className="text-[22px] font-bold tracking-tight">
+                  {(st.name || "?").charAt(0).toUpperCase()}
                 </span>
-                <span className="text-[15px] font-bold tracking-tight">3B</span>
-                <span className="text-[8px] uppercase tracking-tighter">OIL</span>
               </div>
             )}
           </div>
@@ -419,9 +417,9 @@ export function TaxInvoice({
           {st.name}
         </h1>
         <div className="text-[12.5px] text-black mt-0.5">{st.address}</div>
-        {s.showPan && (
+        {s.showPan && (st.panNo || st.vatNo) && (
           <div className="text-[12px] font-semibold text-black mt-0.5">
-            VAT No : {st.panNo || st.vatNo || "300066034"}
+            VAT No : {st.panNo || st.vatNo}
           </div>
         )}
         {st.phone && (
@@ -446,17 +444,13 @@ export function TaxInvoice({
           <div className="flex">
             <span className="w-28 shrink-0 text-black">Party Name :</span>
             <strong className="text-black font-semibold">
-              {receipt.customerName || "Yani International pvt ltd"}
+              {receipt.customerName || "Walk-In Retail Customer"}
             </strong>
           </div>
           {s.showCustomerAddress && (
             <div className="flex">
               <span className="w-28 shrink-0 text-black">Address :</span>
-              <span>
-                {st.address.includes("Kathmandu")
-                  ? "काठमाडौं, 32, कोटेश्वर"
-                  : st.address}
-              </span>
+              <span>{st.address}</span>
             </div>
           )}
           {s.showVehicle && (
@@ -467,12 +461,10 @@ export function TaxInvoice({
               </strong>
             </div>
           )}
-          {s.showCustomerPan && (
+          {s.showCustomerPan && receipt.customerPanNo && (
             <div className="flex">
               <span className="w-28 shrink-0 text-black">Pan No. :</span>
-              <span className="font-mono text-black font-medium">
-                {receipt.customerPanNo || "610368343"}
-              </span>
+              <span className="font-mono text-black font-medium">{receipt.customerPanNo}</span>
             </div>
           )}
         </div>
@@ -481,19 +473,15 @@ export function TaxInvoice({
         <div className="p-3 space-y-1">
           <div className="flex">
             <span className="w-36 shrink-0 text-black">Invoice No. :</span>
-            <strong className="font-mono text-black font-semibold">
-              {receipt.billNumber.startsWith("INV-")
-                ? `tb-${receipt.receiptNo}-083/084`
-                : receipt.billNumber}
-            </strong>
+            <strong className="font-mono text-black font-semibold">{receipt.billNumber}</strong>
           </div>
           <div className="flex">
             <span className="w-36 shrink-0 text-black">Invoice Date :</span>
-            <span>{receipt.dateBS || "2083/05/15"}</span>
+            <span>{receipt.dateBS || receipt.at}</span>
           </div>
           <div className="flex">
             <span className="w-36 shrink-0 text-black">Transaction Date :</span>
-            <span>{receipt.dateBS || "2083/05/15"}</span>
+            <span>{receipt.dateBS || receipt.at}</span>
           </div>
           {s.showPaymentMode && (
             <div className="flex">
@@ -627,7 +615,7 @@ export function TaxInvoice({
           {new Date().toLocaleTimeString("en-IN")}
         </div>
         <div>
-          Printed By : {receipt.soldBy ? receipt.soldBy.toUpperCase() : "SUPER ADMIN"}
+          Printed By : {receipt.soldBy ? receipt.soldBy.toUpperCase() : "STAFF"}
         </div>
       </div>
     </div>

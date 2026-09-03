@@ -80,16 +80,24 @@ export const INVOICE_TEMPLATES: InvoiceTemplateOption[] = [
   },
 ];
 
+/**
+ * Fallback used only if a station's own profile is somehow unavailable —
+ * `name`/`address` are required on every real Station row, so this is
+ * effectively unreachable in practice. Deliberately blank rather than a
+ * fabricated business identity: a station that hasn't set its PAN/VAT/phone
+ * yet should print with that field blank, never with someone else's real
+ * business details standing in for it.
+ */
 export const DEFAULT_BUSINESS_PROFILE: StationBusinessProfile = {
-  name: "Three Brothers Oil Store",
-  address: "New Baneshwor-31, Kathmandu",
-  phone: "01-4797257",
-  panNo: "300066034",
-  vatNo: "300066034",
+  name: "",
+  address: "",
+  phone: null,
+  panNo: null,
+  vatNo: null,
   logoUrl: null,
-  companyName: "Three Brothers Oil Store Pvt. Ltd.",
-  email: "info@threebrothers.com.np",
-  dealerCode: "KTM-DEALER-4091",
+  companyName: null,
+  email: null,
+  dealerCode: null,
 };
 
 export const DEFAULT_INVOICE_SETTINGS: StationInvoiceSettings = {

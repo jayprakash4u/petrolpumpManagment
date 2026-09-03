@@ -126,7 +126,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     name: "Record Stock Purchases",
     category: "Stock & Pricing",
     description: "Log bulk tanker fuel deliveries from NOC and other supplier procurement invoices.",
-    sidebarMenu: "Purchases → Fuel Purchases",
+    sidebarMenu: "Purchases → Purchase Bill Entry",
   },
   {
     key: "manageInventory",

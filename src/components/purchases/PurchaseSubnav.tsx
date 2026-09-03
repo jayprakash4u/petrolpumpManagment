@@ -17,7 +17,7 @@ import { clsx } from "clsx";
 const PURCHASE_TABS = [
   { href: "/purchases", label: "Overview", icon: LayoutGrid },
   { href: "/purchases/suppliers", label: "Suppliers", icon: Contact },
-  { href: "/purchases/fuel", label: "Fuel Purchases", icon: Truck },
+  { href: "/purchases/fuel", label: "Purchase Bill Entry", icon: Truck },
   { href: "/purchases/items", label: "Other Items", icon: Package },
   { href: "/purchases/returns", label: "Returns", icon: Undo2 },
   { href: "/purchases/expenses", label: "Expenses", icon: Wallet },

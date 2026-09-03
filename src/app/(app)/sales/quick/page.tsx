@@ -24,6 +24,7 @@ export default async function QuickSalePage() {
     <div className="mx-auto max-w-2xl animate-fade-in">
       <QuickSaleForm
         tanks={data.tanks}
+        customers={data.customers}
         invoiceConfig={data.invoiceConfig}
         invoiceNumber={data.invoiceNumber}
         todayBS={todayBS}

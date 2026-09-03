@@ -71,6 +71,16 @@ export interface PurchaseReturn {
   approvedByName: string;
 }
 
+/** One line of an expense bill — a bill can carry several (fuel filter cartridge + labour, say), each separately marked taxable or not. */
+export interface ExpenseLineItem {
+  name: string;
+  ledger: string;
+  quantity: string;
+  detail: string;
+  cost: number;
+  taxable: boolean;
+}
+
 export interface StationExpense {
   id: string;
   voucherNo: string;
@@ -78,10 +88,23 @@ export interface StationExpense {
   category: "Electricity & Utilities" | "Generator Diesel" | "Station Maintenance" | "Staff Meals & Tea" | "Municipal & Taxes" | "Stationery & Audit" | (string & {});
   description: string;
   amountNpr: number;
-  paymentMode: "Cash Till" | "Bank Transfer" | "Fonepay QR" | (string & {});
+  paymentMode?: "Cash Till" | "Bank Transfer" | "Fonepay QR" | (string & {});
   recipientName: string;
-  approvedByName: string;
-  receiptAttached: boolean;
+  approvedByName?: string;
+  receiptAttached?: boolean;
+
+  // Bill-entry detail, captured when the expense was recorded through the
+  // full Add Expense form rather than typed in as one lump sum.
+  invoiceNo?: string;
+  supplierPan?: string;
+  items?: ExpenseLineItem[];
+  taxableAmount?: number;
+  nonTaxableAmount?: number;
+  discountAmount?: number;
+  vatAmount?: number;
+  grandTotal?: number;
+  /** Set when this expense has been reversed — kept on the record, not deleted, so the register still shows it happened. */
+  returned?: boolean;
 }
 
 export interface FixedAsset {

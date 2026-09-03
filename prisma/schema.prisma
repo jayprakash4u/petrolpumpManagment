@@ -301,10 +301,38 @@ model Purchase {
   liters       Decimal  @db.Decimal(12, 3)
   totalCost    Decimal  @db.Decimal(12, 2)
   supplier     String
+  supplierPan  String?
   invoiceNo    String?
   recordedById String
   recordedBy   User     @relation("PurchaseRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt    DateTime @default(now())
+
+  // --- Purchase Bill Entry: full landed-cost capture (all optional — a
+  // plain delivery recorded the simple way leaves these null) ---
+  purchaseDateBS String? // the BS date the operator entered on the bill, e.g. "2083-05-18"
+  tankerNo       String?
+  density        Decimal? @db.Decimal(6, 3)
+  temperature    Decimal? @db.Decimal(6, 2)
+  ratePerL       Decimal? @db.Decimal(10, 2) // rate before VAT, as entered on the bill
+  subTotal       Decimal? @db.Decimal(12, 2) // liters * ratePerL
+  vatAmount      Decimal? @db.Decimal(12, 2)
+  invoiceImageUrl String? @db.NVarChar(Max)
+  scannedBillUrl  String? @db.NVarChar(Max)
+
+  // One invoice can insure the load — kept on the first row only when a
+  // delivery is split across two tanks, so a landed-cost total never
+  // double-counts it.
+  insuranceBillNo   String?
+  insuranceCost     Decimal? @db.Decimal(12, 2)
+  insuranceStamp    Decimal? @db.Decimal(12, 2)
+  insuranceTotal    Decimal? @db.Decimal(12, 2)
+
+  transporterName  String?
+  transportBillNo  String?
+  transportCost    Decimal? @db.Decimal(12, 2)
+  transportTotal   Decimal? @db.Decimal(12, 2)
+
+  remarks String? @db.NVarChar(1000)
 
   @@index([stationId, createdAt])
 }

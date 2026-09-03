@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   ListOrdered,
   Plus,
@@ -25,6 +26,9 @@ import {
   CreditCard,
   Banknote,
   QrCode,
+  Hash,
+  CalendarRange,
+  ArrowUpDown,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
@@ -38,7 +42,18 @@ import { BillDetailsModal } from "@/components/sales/BillDetailsModal";
 import { NewSaleModal } from "@/components/sales/NewSaleModal";
 import { VoidSaleButton } from "@/components/sales/VoidSaleButton";
 import type { BillsPageData, SerializedBillItem } from "@/lib/queries/bills";
-import type { BillFilters } from "@/lib/bill-filters";
+import { billQueryString, type BillFilters } from "@/lib/bill-filters";
+import { toDateInput, parseDateInput } from "@/lib/reports";
+import { fiscalYearOf } from "@/lib/bs-date";
+
+/** 13% is Nepal's standard VAT rate — the same split used in the IRD CSV export below. */
+function vatSplit(amount: number): { taxable: number; vat: number } {
+  const taxable = Math.round((amount / 1.13) * 100) / 100;
+  return { taxable, vat: Math.round((amount - taxable) * 100) / 100 };
+}
+
+type SortField = "date" | "receipt" | "amount";
+type SortDir = "asc" | "desc";
 
 export function ListBillsView({
   initialData,
@@ -51,11 +66,44 @@ export function ListBillsView({
   canVoid: boolean;
   canSell?: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isNavPending, startNav] = useTransition();
+
   const [bills, setBills] = useState<SerializedBillItem[]>(initialData.bills);
-  const [searchQuery, setSearchQuery] = useState(filters.search || "");
+  const [billQuery, setBillQuery] = useState(filters.search || "");
+  const [nameQuery, setNameQuery] = useState("");
   const [fuelFilter, setFuelFilter] = useState<string>(filters.fuel || "ALL");
   const [paymentFilter, setPaymentFilter] = useState<string>(filters.payment || "ALL");
   const [statusFilter, setStatusFilter] = useState<string>(filters.status || "all");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // The register is fetched per date window server-side (see getBillsPageData);
+  // these two only take effect once "Search" below re-requests the page with
+  // a new range — everything else on this screen filters instantly client-side.
+  const [fromDate, setFromDate] = useState(toDateInput(filters.range.from));
+  const [toDate, setToDate] = useState(toDateInput(filters.range.to));
+
+  const customerPanById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of initialData.customers) {
+      if (c.panNo) map.set(c.id, c.panNo);
+    }
+    return map;
+  }, [initialData.customers]);
+
+  const handleDateSearch = () => {
+    const from = parseDateInput(fromDate);
+    const to = parseDateInput(toDate);
+    if (!from || !to) return;
+    const qs = billQueryString(filters, {
+      preset: "custom",
+      from: toDateInput(from),
+      to: toDateInput(to),
+    });
+    startNav(() => router.push(`${pathname}${qs}`));
+  };
 
   // Selection & Modal States
   const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
@@ -80,18 +128,34 @@ export function ListBillsView({
         if (paymentFilter === "CREDIT" && b.payment !== "CREDIT") return false;
       }
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      if (billQuery.trim()) {
+        const q = billQuery.toLowerCase().trim();
         const matchNo = String(b.receiptNo).includes(q) || b.billNumber.toLowerCase().includes(q);
         const matchVeh = b.vehicleNo ? b.vehicleNo.toLowerCase().includes(q) : false;
-        const matchCust = b.customerName ? b.customerName.toLowerCase().includes(q) : false;
         const matchBy = b.soldBy.toLowerCase().includes(q);
-        if (!matchNo && !matchVeh && !matchCust && !matchBy) return false;
+        if (!matchNo && !matchVeh && !matchBy) return false;
+      }
+
+      if (nameQuery.trim()) {
+        const q = nameQuery.toLowerCase().trim();
+        const matchCust = b.customerName ? b.customerName.toLowerCase().includes(q) : false;
+        if (!matchCust) return false;
       }
 
       return true;
     });
-  }, [bills, statusFilter, fuelFilter, paymentFilter, searchQuery]);
+  }, [bills, statusFilter, fuelFilter, paymentFilter, billQuery, nameQuery]);
+
+  const sortedBills = useMemo(() => {
+    const sorted = [...filteredBills];
+    const dir = sortDir === "asc" ? 1 : -1;
+    sorted.sort((a, b) => {
+      if (sortField === "receipt") return (a.receiptNo - b.receiptNo) * dir;
+      if (sortField === "amount") return (a.amount - b.amount) * dir;
+      return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+    });
+    return sorted;
+  }, [filteredBills, sortField, sortDir]);
 
   // Recalculated metrics for current filter
   const currentMetrics = useMemo(() => {
@@ -123,7 +187,7 @@ export function ListBillsView({
 
   // Vehicle History Intelligence
   const vehicleStats = useMemo(() => {
-    const q = searchQuery.trim().toUpperCase();
+    const q = billQuery.trim().toUpperCase();
     if (q.length >= 4) {
       const match = bills.filter((b) => b.vehicleNo && b.vehicleNo.toUpperCase().includes(q));
       if (match.length > 0) {
@@ -136,7 +200,7 @@ export function ListBillsView({
       }
     }
     return null;
-  }, [searchQuery, bills]);
+  }, [billQuery, bills]);
 
   const handleSelectAll = () => {
     if (selectedBillIds.size === filteredBills.length) {
@@ -351,26 +415,49 @@ export function ListBillsView({
       </div>
 
       {/* 2. Search, Filter & Slicing Command Strip */}
-      <div className="rounded-2xl border border-border bg-surface p-4 space-y-3 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Universal Real-Time Search Bar */}
-          <div className="flex flex-1 min-w-[280px] items-center gap-2.5 rounded-xl border border-border bg-bg px-3.5 py-2 text-text transition-colors focus-within:border-accent">
-            <Search size={16} className="text-text-muted" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-transparent text-[13px] text-text focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="text-[11.5px] text-text-muted hover:text-text"
-              >
-                Clear
-              </button>
-            )}
+      <div className="rounded-2xl border border-border bg-surface p-4 space-y-3.5 shadow-xs">
+        {/* Search By: two distinct fields, plus the status slicer */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-50 flex-1">
+            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+              <Hash size={12} /> Bill Number / Vehicle
+            </label>
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 transition-colors focus-within:border-accent">
+              <Search size={14} className="text-text-muted shrink-0" />
+              <input
+                type="text"
+                value={billQuery}
+                onChange={(e) => setBillQuery(e.target.value)}
+                placeholder="e.g. 1025 or BA 2 PA 1234"
+                className="w-full bg-transparent text-[13px] text-text focus:outline-none"
+              />
+              {billQuery && (
+                <button type="button" onClick={() => setBillQuery("")} className="shrink-0 text-[11px] text-text-muted hover:text-text">
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="min-w-50 flex-1">
+            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+              <User size={12} /> Customer Name
+            </label>
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 transition-colors focus-within:border-accent">
+              <Search size={14} className="text-text-muted shrink-0" />
+              <input
+                type="text"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+                placeholder="e.g. Ram Shah"
+                className="w-full bg-transparent text-[13px] text-text focus:outline-none"
+              />
+              {nameQuery && (
+                <button type="button" onClick={() => setNameQuery("")} className="shrink-0 text-[11px] text-text-muted hover:text-text">
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Quick Status Slicer */}
@@ -397,6 +484,70 @@ export function ListBillsView({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Search by Date + Sort */}
+        <div className="flex flex-wrap items-end gap-3 border-t border-border pt-3.5">
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+              <CalendarRange size={12} /> From Date
+            </label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
+            />
+          </div>
+          <PrimaryButton
+            type="button"
+            onClick={handleDateSearch}
+            disabled={isNavPending}
+            className="px-4 py-1.75 text-[12px]"
+          >
+            {isNavPending ? "Loading…" : "Search"}
+          </PrimaryButton>
+
+          <div className="ml-1">
+            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+              <ArrowUpDown size={12} /> Sort By
+            </label>
+            <div className="flex gap-1.5">
+              <select
+                value={sortField}
+                onChange={(e) => setSortField(e.target.value as SortField)}
+                className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
+              >
+                <option value="date">Date</option>
+                <option value="receipt">Bill No</option>
+                <option value="amount">Amount</option>
+              </select>
+              <select
+                value={sortDir}
+                onChange={(e) => setSortDir(e.target.value as SortDir)}
+                className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
+              >
+                <option value="desc">Newest first</option>
+                <option value="asc">Oldest first</option>
+              </select>
+            </div>
+          </div>
+
+          <span className="ml-auto pb-1.5 text-[12px] text-text-muted font-data">
+            Register window: <strong className="text-text">{toDateInput(filters.range.from)}</strong> to{" "}
+            <strong className="text-text">{toDateInput(filters.range.to)}</strong>
+          </span>
         </div>
 
         {/* Dropdown Filters Strip */}
@@ -468,7 +619,7 @@ export function ListBillsView({
       {/* 5. The Master Bill Register Data Table */}
       <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-[12.5px] min-w-[960px]">
+          <table className="w-full text-left text-[12.5px] min-w-295">
             <thead className="border-b border-border bg-surface-hi text-[11px] font-semibold uppercase tracking-wider text-text-muted font-data">
               <tr>
                 <th className="px-3 py-3 text-center w-10">
@@ -480,30 +631,38 @@ export function ListBillsView({
                     )}
                   </button>
                 </th>
+                <th className="px-2 py-3 text-center">S.NO</th>
                 <th className="px-3 py-3">RECEIPT</th>
                 <th className="px-3 py-3">DATE (BS) & TIME</th>
+                <th className="px-3 py-3">FISCAL YR</th>
                 <th className="px-3 py-3">VEHICLE</th>
                 <th className="px-3 py-3">CUSTOMER</th>
+                <th className="px-3 py-3">CUSTOMER PAN</th>
                 <th className="px-3 py-3">FUEL</th>
                 <th className="px-3 py-3 text-right">VOLUME</th>
                 <th className="px-3 py-3 text-right">RATE</th>
-                <th className="px-4 py-3 text-right font-bold">AMOUNT</th>
+                <th className="px-3 py-3 text-right">TAXABLE</th>
+                <th className="px-3 py-3 text-right">VAT</th>
+                <th className="px-4 py-3 text-right font-bold">GRAND TOTAL</th>
                 <th className="px-3 py-3 text-center">PAYMENT</th>
-                <th className="px-3 py-3">BY</th>
+                <th className="px-3 py-3">ADDED BY</th>
                 <th className="px-3 py-3 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border font-data">
-              {filteredBills.length === 0 ? (
+              {sortedBills.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-text-muted font-body">
+                  <td colSpan={17} className="py-12 text-center text-text-muted font-body">
                     No bills found matching the selected filters.
                   </td>
                 </tr>
               ) : (
-                filteredBills.map((b) => {
+                sortedBills.map((b, idx) => {
                   const isChecked = selectedBillIds.has(b.id);
                   const fuelId = b.fuel as FuelId;
+                  const { taxable, vat } = vatSplit(b.amount);
+                  const fiscalYear = fiscalYearOf(new Date(b.createdAt));
+                  const customerPan = b.customerId ? customerPanById.get(b.customerId) : undefined;
 
                   return (
                     <tr
@@ -528,6 +687,8 @@ export function ListBillsView({
                         </button>
                       </td>
 
+                      <td className="px-2 py-3 text-center text-text-muted">{idx + 1}</td>
+
                       <td className="px-3 py-3 font-mono font-bold text-accent">
                         <button
                           type="button"
@@ -544,6 +705,10 @@ export function ListBillsView({
                         <div className="text-[11px] text-text-muted">{b.time}</div>
                       </td>
 
+                      <td className="px-3 py-3 font-body text-text-muted">
+                        {fiscalYear ?? "—"}
+                      </td>
+
                       <td className="px-3 py-3 font-body">
                         {b.vehicleNo ? (
                           <span className="font-mono bg-bg border border-border px-2 py-0.5 rounded text-[11.5px] font-bold text-text">
@@ -558,6 +723,10 @@ export function ListBillsView({
                         {b.customerName || (
                           <span className="text-text-muted text-[11.5px]">Walk-In Cash</span>
                         )}
+                      </td>
+
+                      <td className="px-3 py-3 font-mono text-[11.5px] text-text-muted">
+                        {customerPan || "—"}
                       </td>
 
                       <td className="px-3 py-3 font-body">
@@ -582,6 +751,14 @@ export function ListBillsView({
 
                       <td className="px-3 py-3 text-right text-text-muted">
                         Rs {b.rate.toFixed(2)}
+                      </td>
+
+                      <td className="px-3 py-3 text-right text-text-muted">
+                        {fmtRs(taxable)}
+                      </td>
+
+                      <td className="px-3 py-3 text-right text-text-muted">
+                        {fmtRs(vat)}
                       </td>
 
                       <td

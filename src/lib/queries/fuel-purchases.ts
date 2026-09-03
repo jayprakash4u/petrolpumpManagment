@@ -34,11 +34,20 @@ export async function getFuelPurchasesPageData() {
     }),
   ]);
 
-  const deliveries = purchases.map((p) => ({
-    ...p,
-    costPerL: costPerLiter(p.totalCost, p.liters),
-    margin: marginPerLiter(tanks.find((t) => t.fuel === p.fuel)?.ratePerL ?? new D(0), p.totalCost, p.liters),
-  }));
+  // Prisma's Decimal is a class instance, not a plain object — it can't
+  // cross the Server -> Client Component boundary, so every Decimal field
+  // handed to <FuelPurchasesTable> (a client component) is stringified here.
+  const deliveries = purchases.map((p) => {
+    const costPerL = costPerLiter(p.totalCost, p.liters);
+    const margin = marginPerLiter(tanks.find((t) => t.fuel === p.fuel)?.ratePerL ?? new D(0), p.totalCost, p.liters);
+    return {
+      ...p,
+      liters: p.liters.toString(),
+      totalCost: p.totalCost.toString(),
+      costPerL: costPerL ? costPerL.toString() : null,
+      margin: margin ? margin.toString() : null,
+    };
+  });
 
   return {
     tankOptions: tanks.map((t) => ({

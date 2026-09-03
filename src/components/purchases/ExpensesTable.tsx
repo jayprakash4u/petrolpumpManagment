@@ -1,357 +1,333 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, Wallet, CheckCircle2, Receipt, Filter, Check, IndianRupee, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Plus, Download, Printer, CalendarRange, Search, RotateCcw, Trash2 } from "lucide-react";
 import type { StationExpense } from "@/lib/purchases";
 import { fmtRs } from "@/lib/money";
-import { Badge } from "@/components/ui/Badge";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { fiscalYearOf, fiscalYearRange, parseBSInput, fromBS } from "@/lib/bs-date";
+import { toDateInput } from "@/lib/reports";
 
 const STORAGE_KEY = "fsm_expenses";
 
-export function ExpensesTable({ expenses }: { expenses: StationExpense[] }) {
-  const [list, setList] = useState<StationExpense[]>(expenses);
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+function recentFiscalYears(count = 5): { label: string; startYear: number }[] {
+  const currentFY = fiscalYearOf(new Date());
+  const startYear = currentFY ? parseInt(currentFY.split("/")[0], 10) : new Date().getFullYear() - 57;
+  return Array.from({ length: count }, (_, i) => {
+    const y = startYear - i;
+    return { label: `${y}/${String((y + 1) % 100).padStart(2, "0")}`, startYear: y };
+  });
+}
 
-  useEffect(() => {
+function saveList(updated: StationExpense[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+/** Real Gregorian date, derived from the BS string the operator typed — not stored separately, so it can never drift out of sync. */
+function englishDate(dateBS: string): string {
+  const bs = parseBSInput(dateBS);
+  const d = bs ? fromBS(bs) : null;
+  return d ? d.toISOString().slice(0, 10) : "—";
+}
+
+export function ExpensesTable({ expenses }: { expenses: StationExpense[] }) {
+  // Read once, synchronously, as the initial value, so a voucher just added
+  // on the full-page form is there on the very first render.
+  const [list, setList] = useState<StationExpense[]>(() => {
+    if (typeof window === "undefined") return expenses;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setList(parsed);
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-  }, []);
+    return expenses;
+  });
 
-  const saveList = (updated: StationExpense[]) => {
-    setList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+  const fiscalYears = useMemo(() => recentFiscalYears(), []);
+  const currentFYRange = useMemo(() => {
+    const fy = fiscalYears[0];
+    return fy ? fiscalYearRange(fy.startYear) : null;
+  }, [fiscalYears]);
+
+  const [fiscalYear, setFiscalYear] = useState(String(fiscalYears[0]?.startYear ?? ""));
+  const [fromDate, setFromDate] = useState(currentFYRange ? toDateInput(currentFYRange.from) : "");
+  const [toDate, setToDate] = useState(currentFYRange ? toDateInput(currentFYRange.to) : "");
+  const [appliedFrom, setAppliedFrom] = useState(fromDate);
+  const [appliedTo, setAppliedTo] = useState(toDate);
+  const [search, setSearch] = useState("");
+
+  const handleFiscalYearChange = (value: string) => {
+    setFiscalYear(value);
+    const fy = fiscalYears.find((f) => String(f.startYear) === value);
+    if (!fy) return;
+    const range = fiscalYearRange(fy.startYear);
+    if (!range) return;
+    setFromDate(toDateInput(range.from));
+    setToDate(toDateInput(range.to));
+    setAppliedFrom(toDateInput(range.from));
+    setAppliedTo(toDateInput(range.to));
   };
 
-  // Form state
-  const [dateBS, setDateBS] = useState("2083-05-03");
-  const [category, setCategory] = useState<string>("Station Maintenance");
-  const [customCategory, setCustomCategory] = useState("");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("2500");
-  const [paymentMode, setPaymentMode] = useState<string>("Cash Till");
-  const [customPaymentMode, setCustomPaymentMode] = useState("");
-  const [recipient, setRecipient] = useState("");
-
-  const handleRecord = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalCategory = category === "Other" ? (customCategory.trim() || "Miscellaneous Expense") : category;
-    const finalPaymentMode = paymentMode === "Other" ? (customPaymentMode.trim() || "Other Payment") : paymentMode;
-
-    const newExpense: StationExpense = {
-      id: `exp-${Date.now()}`,
-      voucherNo: `PV-2083-${String(list.length + 83).padStart(3, "0")}`,
-      dateBS,
-      category: finalCategory,
-      description,
-      amountNpr: parseFloat(amount) || 0,
-      paymentMode: finalPaymentMode,
-      recipientName: recipient,
-      approvedByName: "Anita Shrestha (Manager)",
-      receiptAttached: true,
-    };
-
-    saveList([newExpense, ...list]);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setModalOpen(false);
-      setDescription("");
-      setRecipient("");
-      setCustomCategory("");
-      setCustomPaymentMode("");
-    }, 1000);
+  const handleFilter = () => {
+    setAppliedFrom(fromDate);
+    setAppliedTo(toDate);
   };
-
-  const categories = Array.from(
-    new Set([
-      "Station Maintenance",
-      "Electricity & Utilities",
-      "Generator Diesel",
-      "Staff Meals & Tea",
-      "Stationery & Audit",
-      "Municipal & Taxes",
-      ...list.map((e) => e.category),
-    ])
-  );
 
   const filtered = list.filter((e) => {
-    if (categoryFilter !== "ALL" && e.category !== categoryFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const matchVoucher = e.voucherNo.toLowerCase().includes(q);
-      const matchDesc = e.description.toLowerCase().includes(q);
-      const matchRecipient = e.recipientName.toLowerCase().includes(q);
-      const matchCategory = e.category.toLowerCase().includes(q);
-      const matchMode = e.paymentMode.toLowerCase().includes(q);
-      if (!matchVoucher && !matchDesc && !matchRecipient && !matchCategory && !matchMode) return false;
+    const iso = englishDate(e.dateBS);
+    if (appliedFrom && iso !== "—" && iso < appliedFrom) return false;
+    if (appliedTo && iso !== "—" && iso > appliedTo) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const hay = [e.voucherNo, e.invoiceNo, e.recipientName, e.supplierPan, e.category].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
 
-  const totalExpense = filtered.reduce((sum, e) => sum + e.amountNpr, 0);
+  const totals = filtered.reduce(
+    (acc, e) => {
+      const subTotal = (e.taxableAmount ?? 0) + (e.nonTaxableAmount ?? 0);
+      acc.subTotal += subTotal;
+      acc.taxable += e.taxableAmount ?? 0;
+      acc.tax += e.vatAmount ?? 0;
+      acc.grandTotal += e.grandTotal ?? e.amountNpr;
+      return acc;
+    },
+    { subTotal: 0, taxable: 0, tax: 0, grandTotal: 0 }
+  );
+
+  const handleReturn = (id: string) => {
+    if (!confirm("Mark this expense as returned/reversed?")) return;
+    const updated = list.map((e) => (e.id === id ? { ...e, returned: true } : e));
+    setList(updated);
+    saveList(updated);
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm("Delete this expense purchase? This cannot be undone.")) return;
+    const updated = list.filter((e) => e.id !== id);
+    setList(updated);
+    saveList(updated);
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Purchase ID",
+      "Purchase Date (Nepali)",
+      "Purchase Date (English)",
+      "Bill Number",
+      "Supplier Name",
+      "Supplier VAT Number",
+      "Subtotal Purchase Price",
+      "Taxable Amount",
+      "Non-Taxable Amount",
+      "Discount Amount",
+      "Tax Amount",
+      "Total Purchase Price",
+    ];
+    const rows = filtered.map((e) => [
+      e.voucherNo,
+      e.dateBS,
+      englishDate(e.dateBS),
+      e.invoiceNo ?? "",
+      e.recipientName || "",
+      e.supplierPan ?? "",
+      ((e.taxableAmount ?? 0) + (e.nonTaxableAmount ?? 0)).toFixed(2),
+      (e.taxableAmount ?? 0).toFixed(2),
+      (e.nonTaxableAmount ?? 0).toFixed(2),
+      (e.discountAmount ?? 0).toFixed(2),
+      (e.vatAmount ?? 0).toFixed(2),
+      (e.grandTotal ?? e.amountNpr).toFixed(2),
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `expense_register_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div>
-      {/* Filters and Action */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Search Box */}
-          <div className="relative w-[240px] sm:w-[280px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-            <Input
-              placeholder="Search voucher #, particulars, paid to..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="py-1.5 pl-8 text-xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted">
-            <Filter size={13} />
-            <span>CATEGORY:</span>
-          </div>
-
-          <div className="w-[180px]">
-            <Select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="py-1.5 text-xs"
-            >
-              <option value="ALL">All Categories</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </div>
+      {/* Filter Toolbar */}
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-bg p-3">
+        <div>
+          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-text-muted">Fiscal Year</label>
+          <select
+            value={fiscalYear}
+            onChange={(e) => handleFiscalYearChange(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-text"
+          >
+            {fiscalYears.map((fy) => (
+              <option key={fy.startYear} value={fy.startYear}>
+                {fy.label}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-text-muted">
-            Total Logged: <strong className="font-data text-accent">{fmtRs(totalExpense)}</strong>
-          </span>
-          <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
-            <Plus size={15} />
-            Record Expense
-          </PrimaryButton>
+        <div>
+          <label className="mb-1 flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+            <CalendarRange size={11} /> From
+          </label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-text"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-text-muted">To</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-text"
+          />
+        </div>
+
+        <div className="min-w-45 flex-1">
+          <label className="mb-1 flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
+            <Search size={11} /> Search
+          </label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Bill number, supplier, PAN"
+            className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[12px] text-text"
+          />
+        </div>
+
+        <PrimaryButton type="button" onClick={handleFilter} className="px-4 py-1.75 text-[12px]">
+          Filter
+        </PrimaryButton>
+
+        <div className="ml-auto flex gap-2">
+          <GhostButton type="button" onClick={() => window.print()} className="gap-1.5 text-xs">
+            <Printer size={14} />
+            Print
+          </GhostButton>
+          <GhostButton type="button" onClick={handleExportCSV} className="gap-1.5 text-xs">
+            <Download size={14} />
+            Export CSV
+          </GhostButton>
+          <Link href="/purchases/expenses/new">
+            <PrimaryButton type="button" className="gap-1.5 text-xs">
+              <Plus size={15} />
+              Add Expense
+            </PrimaryButton>
+          </Link>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[840px] border-collapse text-left">
+      {/* Summary Strip */}
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-text-muted">Subtotal Purchase Price</div>
+          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.subTotal)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-text-muted">Taxable Amount</div>
+          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.taxable)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-text-muted">Tax Amount (VAT)</div>
+          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.tax)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-text-muted">Total Purchase Price</div>
+          <div className="font-data mt-1 text-lg font-bold text-accent">{fmtRs(totals.grandTotal)}</div>
+        </div>
+      </div>
+
+      {/* Register Table */}
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-295 border-collapse text-left">
           <thead>
-            <tr className="border-b border-border font-data text-[11px] tracking-wide text-text-muted">
-              <th className="px-3 py-2.5 font-medium">VOUCHER #</th>
+            <tr className="border-b border-border bg-surface-hi font-data text-[11px] tracking-wide text-text-muted">
+              <th className="px-3 py-2.5 font-medium">S.N.</th>
+              <th className="px-3 py-2.5 font-medium">PURCHASE ID</th>
               <th className="px-3 py-2.5 font-medium">DATE (BS)</th>
-              <th className="px-3 py-2.5 font-medium">CATEGORY</th>
-              <th className="px-3 py-2.5 font-medium">PARTICULARS</th>
-              <th className="px-3 py-2.5 font-medium">PAID TO / VENDOR</th>
-              <th className="px-3 py-2.5 font-medium">MODE</th>
-              <th className="px-3 py-2.5 text-right font-medium">AMOUNT (NPR)</th>
-              <th className="px-3 py-2.5 text-center font-medium">DOCUMENT</th>
+              <th className="px-3 py-2.5 font-medium">DATE (AD)</th>
+              <th className="px-3 py-2.5 font-medium">BILL NUMBER</th>
+              <th className="px-3 py-2.5 font-medium">SUPPLIER NAME</th>
+              <th className="px-3 py-2.5 font-medium">SUPPLIER VAT NO.</th>
+              <th className="px-3 py-2.5 text-right font-medium">SUBTOTAL (RS)</th>
+              <th className="px-3 py-2.5 text-right font-medium">TAXABLE (RS)</th>
+              <th className="px-3 py-2.5 text-right font-medium">NON-TAXABLE (RS)</th>
+              <th className="px-3 py-2.5 text-right font-medium">DISCOUNT (RS)</th>
+              <th className="px-3 py-2.5 text-right font-medium">TAX (RS)</th>
+              <th className="px-3 py-2.5 text-right font-medium">TOTAL (RS)</th>
+              <th className="px-3 py-2.5 font-medium">ACTION</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-xs text-text-muted">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <Receipt size={24} className="text-text-muted/40" />
-                    <span>No expense vouchers match "{searchQuery || categoryFilter}".</span>
-                  </div>
+                <td colSpan={14} className="px-3 py-10 text-center text-xs text-text-muted">
+                  No expenses recorded in this range.
                 </td>
               </tr>
             ) : (
-              filtered.map((e) => (
-                <tr key={e.id} className="border-b border-border/60 transition-colors hover:bg-surface-hi/40">
-                  <td className="px-3 py-3 font-data text-[12.5px] font-semibold text-accent">{e.voucherNo}</td>
-
-                  <td className="px-3 py-3 font-data text-[12px] text-text-muted">{e.dateBS}</td>
-
-                  <td className="px-3 py-3">
-                    <Badge tone="muted">{e.category}</Badge>
-                  </td>
-
-                  <td className="px-3 py-3 text-[13px] text-text">{e.description}</td>
-
-                  <td className="px-3 py-3 text-[12.5px] text-text-muted">{e.recipientName}</td>
-
-                  <td className="px-3 py-3 font-data text-[12px] text-text-muted">{e.paymentMode}</td>
-
-                  <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">
-                    {fmtRs(e.amountNpr)}
-                  </td>
-
-                  <td className="px-3 py-3 text-center">
-                    <Badge tone={e.receiptAttached ? "success" : "muted"}>
-                      {e.receiptAttached ? "ATTACHED" : "CASH MEMO"}
-                    </Badge>
-                  </td>
-                </tr>
-              ))
+              filtered.map((e, idx) => {
+                const subTotal = (e.taxableAmount ?? 0) + (e.nonTaxableAmount ?? 0);
+                return (
+                  <tr key={e.id} className={`border-b border-border/60 transition-colors hover:bg-surface-hi/40 ${e.returned ? "opacity-60" : ""}`}>
+                    <td className="px-3 py-3 text-[12px] text-text-muted">{idx + 1}</td>
+                    <td className="px-3 py-3 font-data text-xs font-semibold text-accent">
+                      {e.voucherNo}
+                      {e.returned && <div className="text-[10px] font-bold text-error">RETURNED</div>}
+                    </td>
+                    <td className="px-3 py-3 font-data text-[12.5px] text-text">{e.dateBS}</td>
+                    <td className="px-3 py-3 font-data text-[11.5px] text-text-muted">{englishDate(e.dateBS)}</td>
+                    <td className="px-3 py-3 font-data text-xs text-text">{e.invoiceNo || "—"}</td>
+                    <td className="px-3 py-3 text-[13px] text-text">{e.recipientName || "—"}</td>
+                    <td className="px-3 py-3 font-data text-[12px] text-text-muted">{e.supplierPan || "—"}</td>
+                    <td className="px-3 py-3 text-right font-data text-[12.5px] text-text">{fmtRs(subTotal)}</td>
+                    <td className="px-3 py-3 text-right font-data text-[12.5px] text-text">{fmtRs(e.taxableAmount ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-data text-[12.5px] text-text-muted">{fmtRs(e.nonTaxableAmount ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-data text-[12.5px] text-text-muted">{fmtRs(e.discountAmount ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-data text-[12.5px] text-text">{fmtRs(e.vatAmount ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-data text-[13px] font-bold text-accent">{fmtRs(e.grandTotal ?? e.amountNpr)}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        {!e.returned && (
+                          <button
+                            type="button"
+                            onClick={() => handleReturn(e.id)}
+                            className="flex items-center gap-1 text-[11.5px] font-semibold text-error hover:underline"
+                          >
+                            <RotateCcw size={12} /> Return
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(e.id)}
+                          className="flex items-center gap-1 text-[11.5px] font-semibold text-text-muted hover:text-error hover:underline"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Record Expense Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
-            <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
-                  <Wallet size={18} />
-                </div>
-                <div>
-                  <h3 className="font-display text-base font-bold text-text">Record Day Book Expense</h3>
-                  <p className="text-xs text-text-muted">Log petty cash, utility bills, or maintenance disbursements</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="cursor-pointer rounded-lg p-1 text-text-muted hover:bg-surface-hi hover:text-text"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {submitted ? (
-              <div className="py-8 text-center animate-fade-in">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success/20 text-success">
-                  <Check size={24} />
-                </div>
-                <h4 className="font-display text-base font-semibold text-text">Expense Recorded</h4>
-                <p className="mt-1 text-xs text-text-muted">
-                  Voucher created for {fmtRs(parseFloat(amount) || 0)}.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleRecord} className="flex flex-col gap-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Date (BS)">
-                    <Input value={dateBS} onChange={(e) => setDateBS(e.target.value)} required />
-                  </Field>
-                  <Field label="Expense Category">
-                    <Select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="Station Maintenance">Station Maintenance</option>
-                      <option value="Electricity & Utilities">Electricity & Utilities</option>
-                      <option value="Generator Diesel">Generator Diesel</option>
-                      <option value="Staff Meals & Tea">Staff Meals & Tea</option>
-                      <option value="Stationery & Audit">Stationery & Audit</option>
-                      <option value="Municipal & Taxes">Municipal & Taxes</option>
-                      <option value="Other">Other (Specify)</option>
-                    </Select>
-                  </Field>
-                </div>
-
-                <Field label="Expense Particulars / Description">
-                  <Input
-                    placeholder="e.g. Forecourt light bulb replacement & wiring"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    required
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Amount (NPR)">
-                    <Input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Payment Mode">
-                    <Select
-                      value={paymentMode}
-                      onChange={(e) => setPaymentMode(e.target.value)}
-                    >
-                      <option value="Cash Till">Cash Till (Petty cash)</option>
-                      <option value="Fonepay QR">Fonepay QR</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Other">Other (Specify)</option>
-                    </Select>
-                  </Field>
-                </div>
-
-                {/* Conditional Custom Inputs for Other */}
-                {(category === "Other" || paymentMode === "Other") && (
-                  <div className="grid grid-cols-1 gap-3 rounded-xl border border-accent/30 bg-accent/5 p-3 sm:grid-cols-2">
-                    {category === "Other" && (
-                      <Field label="Custom Expense Category">
-                        <Input
-                          placeholder="e.g. Legal Fees, Land Lease, Insurance"
-                          value={customCategory}
-                          onChange={(e) => setCustomCategory(e.target.value)}
-                          required
-                          autoFocus
-                        />
-                      </Field>
-                    )}
-                    {paymentMode === "Other" && (
-                      <Field label="Custom Payment Method">
-                        <Input
-                          placeholder="e.g. Cheque No. 441029, eSewa"
-                          value={customPaymentMode}
-                          onChange={(e) => setCustomPaymentMode(e.target.value)}
-                          required
-                        />
-                      </Field>
-                    )}
-                  </div>
-                )}
-
-                <Field label="Paid To / Vendor Name">
-                  <Input
-                    placeholder="e.g. Local Hardware Mart / Service tech"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    required
-                  />
-                </Field>
-
-                <div className="mt-2 flex items-center justify-end gap-2.5">
-                  <GhostButton type="button" onClick={() => setModalOpen(false)}>
-                    Cancel
-                  </GhostButton>
-                  <PrimaryButton type="submit">Record Voucher</PrimaryButton>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

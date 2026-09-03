@@ -1,82 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, Contact, Phone, Mail, MapPin, Building, Check, Search, Filter } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { Plus, X, Contact, MapPin, Building, Search, Filter } from "lucide-react";
 import type { Supplier } from "@/lib/purchases";
 import { fmtRs } from "@/lib/money";
 import { Badge } from "@/components/ui/Badge";
-import { PrimaryButton, GhostButton } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { PrimaryButton } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Field";
 
 const STORAGE_KEY = "fsm_suppliers";
 
 export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
-  const [list, setList] = useState<Supplier[]>(suppliers);
-  const [categoryFilter, setCategoryFilter] = useState("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  useEffect(() => {
+  // Read once, synchronously, as the initial value, so a supplier just added
+  // on the full-page form is there on the very first render — no effect,
+  // no extra render.
+  const [list] = useState<Supplier[]>(() => {
+    if (typeof window === "undefined") return suppliers;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setList(parsed);
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-  }, []);
-
-  const saveList = (updated: Supplier[]) => {
-    setList(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
-  };
-
-  // Form state
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<string>("Lubricants & Oils");
-  const [customCategory, setCustomCategory] = useState("");
-  const [panVat, setPanVat] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState<string>("Net 30 Days");
-
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalCategory = category === "Other" ? (customCategory.trim() || "General Supplier") : category;
-
-    const newSupplier: Supplier = {
-      id: `sup-${Date.now()}`,
-      name: name.trim(),
-      category: finalCategory,
-      panVatNo: panVat.trim(),
-      contactPerson: contactPerson.trim(),
-      phone: phone.trim(),
-      email: email.trim() || undefined,
-      address: address.trim(),
-      paymentTerms: paymentTerms,
-      balanceDueNpr: 0,
-      totalPurchasedNpr: 0,
-      active: true,
-    };
-    saveList([newSupplier, ...list]);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setModalOpen(false);
-      setName("");
-      setPanVat("");
-      setContactPerson("");
-      setPhone("");
-      setCustomCategory("");
-    }, 1000);
-  };
+    return suppliers;
+  });
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const categories = Array.from(
     new Set(["Fuel Refinery", "Lubricants & Oils", "Spares & Equipment", "Utilities & Govt", ...list.map((s) => s.category)])
@@ -142,10 +93,12 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
           </div>
         </div>
 
-        <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
-          <Plus size={15} />
-          Add Supplier
-        </PrimaryButton>
+        <Link href="/purchases/suppliers/new">
+          <PrimaryButton type="button" className="gap-1.5 text-xs">
+            <Plus size={15} />
+            Add Supplier
+          </PrimaryButton>
+        </Link>
       </div>
 
       <div className="overflow-x-auto">
@@ -168,7 +121,7 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                 <td colSpan={8} className="px-3 py-10 text-center text-xs text-text-muted">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Contact size={24} className="text-text-muted/40" />
-                    <span>No suppliers match "{searchQuery || categoryFilter}".</span>
+                    <span>No suppliers match &ldquo;{searchQuery || categoryFilter}&rdquo;.</span>
                   </div>
                 </td>
               </tr>
@@ -220,147 +173,6 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
           </tbody>
         </table>
       </div>
-
-      {/* Add Supplier Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-fade-in">
-            <div className="mb-4 flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
-                  <Contact size={18} />
-                </div>
-                <div>
-                  <h3 className="font-display text-base font-bold text-text">Add New Supplier</h3>
-                  <p className="text-xs text-text-muted">Register an authorized fuel or inventory vendor</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="cursor-pointer rounded-lg p-1 text-text-muted hover:bg-surface-hi hover:text-text"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {submitted ? (
-              <div className="py-8 text-center animate-fade-in">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success/20 text-success">
-                  <Check size={24} />
-                </div>
-                <h4 className="font-display text-base font-semibold text-text">Supplier Registered</h4>
-                <p className="mt-1 text-xs text-text-muted">{name} has been added to the directory.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleAdd} className="flex flex-col gap-4">
-                <Field label="Company / Supplier Name">
-                  <Input
-                    placeholder="e.g. Nepal Oil Corporation or Castrol Lubricants"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Category">
-                    <Select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="Fuel Refinery">Fuel Refinery (NOC / IOC)</option>
-                      <option value="Lubricants & Oils">Lubricants & Oils</option>
-                      <option value="Spares & Equipment">Spares & Equipment</option>
-                      <option value="Utilities & Govt">Utilities & Govt</option>
-                      <option value="Other">Other (Specify)</option>
-                    </Select>
-                  </Field>
-                  <Field label="PAN / VAT Number">
-                    <Input
-                      placeholder="e.g. 300054891"
-                      value={panVat}
-                      onChange={(e) => setPanVat(e.target.value)}
-                      required
-                    />
-                  </Field>
-                </div>
-
-                {category === "Other" && (
-                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-                    <Field label="Custom Category / Business Type">
-                      <Input
-                        placeholder="e.g. Uniforms & Safety, Security, Construction, Marketing"
-                        value={customCategory}
-                        onChange={(e) => setCustomCategory(e.target.value)}
-                        required
-                        autoFocus
-                      />
-                    </Field>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Contact Person">
-                    <Input
-                      placeholder="e.g. Birendra Shrestha"
-                      value={contactPerson}
-                      onChange={(e) => setContactPerson(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field label="Phone / Mobile">
-                    <Input
-                      placeholder="e.g. +977 9851084721"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      required
-                    />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Email Address (Optional)">
-                    <Input
-                      type="email"
-                      placeholder="supplier@domain.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Payment Terms">
-                    <Select
-                      value={paymentTerms}
-                      onChange={(e) => setPaymentTerms(e.target.value as Supplier["paymentTerms"])}
-                    >
-                      <option value="Advance / Pre-paid">Advance / Pre-paid</option>
-                      <option value="Net 15 Days">Net 15 Days</option>
-                      <option value="Net 30 Days">Net 30 Days</option>
-                      <option value="Immediate Cash">Immediate Cash</option>
-                    </Select>
-                  </Field>
-                </div>
-
-                <Field label="Depot / Physical Address">
-                  <Input
-                    placeholder="e.g. Amlekhgunj Depot, Bara"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    required
-                  />
-                </Field>
-
-                <div className="mt-2 flex items-center justify-end gap-2.5">
-                  <GhostButton type="button" onClick={() => setModalOpen(false)}>
-                    Cancel
-                  </GhostButton>
-                  <PrimaryButton type="submit">Save Supplier</PrimaryButton>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
