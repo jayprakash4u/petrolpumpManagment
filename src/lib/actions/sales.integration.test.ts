@@ -15,7 +15,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { User } from "@prisma/client";
-import type { Role } from "@/lib/permissions";
+
+/**
+ * There's one real `Role` value now ("OWNER" — every login has full
+ * access, see @/lib/permissions). These labels aren't roles in that
+ * sense; they're just names for four distinct test actors so tests can
+ * attribute a sale/void to "whoever was logged in" without all sharing
+ * one user row. Every one of them is created with the real `role: "OWNER"`.
+ */
+type ActorLabel = "OWNER" | "MANAGER" | "CASHIER" | "ATTENDANT";
 
 // Point the Prisma singleton at a scratch database *before* src/lib/db.ts is
 // imported anywhere — it reads DATABASE_URL at module load.
@@ -44,7 +52,7 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 let stationId: string;
 let petrolTankId: string;
 let customerId: string;
-const users: Record<Role, User> = {} as Record<Role, User>;
+const users: Record<ActorLabel, User> = {} as Record<ActorLabel, User>;
 
 /** Builds the FormData the browser would post, so the action's parsing is exercised too. */
 function saleForm(fields: Record<string, string>) {
@@ -84,15 +92,15 @@ beforeEach(async () => {
   });
   stationId = station.id;
 
-  const roles: Role[] = ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"];
-  for (const role of roles) {
-    users[role] = await prisma.user.create({
+  const actorLabels: ActorLabel[] = ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"];
+  for (const label of actorLabels) {
+    users[label] = await prisma.user.create({
       data: {
         stationId,
-        name: role + " User",
-        username: role.toLowerCase() + ".user",
+        name: label + " User",
+        username: label.toLowerCase() + ".user",
         passwordHash: "x",
-        role,
+        role: "OWNER",
       },
     });
   }
@@ -285,11 +293,11 @@ describe("recordSaleAction — input and authorization", () => {
     expect(await prisma.sale.count()).toBe(0);
   });
 
-  it("lets every sales-facing role record a sale", async () => {
-    for (const role of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as const) {
-      currentUser = users[role];
+  it("lets any logged-in station account record a sale — access isn't role-gated", async () => {
+    for (const label of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as const) {
+      currentUser = users[label];
       const result = await recordSaleAction({}, cashSale({ quantity: "1" }));
-      expect(result.error, role).toBeUndefined();
+      expect(result.error, label).toBeUndefined();
     }
   });
 });
@@ -346,21 +354,19 @@ describe("voidSaleAction", () => {
     expect(tank.levelL.toString()).toBe("1000");
   });
 
-  it("is refused for a cashier or attendant", async () => {
+  it("isn't restricted to an owner or manager — any login can void", async () => {
     currentUser = users.CASHIER;
     await recordSaleAction({}, cashSale({ quantity: "40" }));
     const row = await prisma.sale.findFirstOrThrow();
 
-    for (const role of ["CASHIER", "ATTENDANT"] as const) {
-      currentUser = users[role];
-      const fd = new FormData();
-      fd.set("saleId", row.id);
-      fd.set("reason", "Trying it on");
-      const result = await voidSaleAction({}, fd);
-      expect(result.error, role).toMatch(/owner or manager/);
-    }
+    currentUser = users.ATTENDANT;
+    const fd = new FormData();
+    fd.set("saleId", row.id);
+    fd.set("reason", "Trying it on");
+    const result = await voidSaleAction({}, fd);
+    expect(result.error).toBeUndefined();
 
-    expect((await prisma.sale.findUniqueOrThrow({ where: { id: row.id } })).voided).toBe(false);
+    expect((await prisma.sale.findUniqueOrThrow({ where: { id: row.id } })).voided).toBe(true);
   });
 
   it("insists on a reason, so the audit trail is never blank", async () => {

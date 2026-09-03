@@ -305,12 +305,12 @@ export function StationManageView({ slug, tenant, station, invoiceConfig, stats 
 
         <div className="flex items-center gap-2">
           <a
-            href={`/login?station=${slug}`}
+            href={`/api/admin/impersonate?slug=${slug}`}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-bold text-accent hover:bg-accent/20 transition-all"
+            className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent hover:bg-accent/25 transition-all shadow-xs"
           >
-            <ExternalLink size={13} /> Open Station Portal
+            <ExternalLink size={13} /> Login as Station Admin (Support Mode)
           </a>
           <SuspendControl
             stationId={tenant.id}

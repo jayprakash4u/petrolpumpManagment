@@ -36,7 +36,10 @@ const WORKFLOW_ICONS: Record<ApprovalWorkflowType, React.ComponentType<{ size?: 
   PURCHASE_INVOICE_RELEASE: Truck,
 };
 
-const ALL_ROLES: Role[] = ["OWNER", "MANAGER", "CASHIER", "ACCOUNTANT", "ATTENDANT", "OTHER"];
+// There is one role — see @/lib/permissions — so this policy's
+// "approverRoles" no longer distinguishes anything; canUserApprove()
+// grants approval authority to any login except the request's own maker.
+const ALL_ROLES: Role[] = ["OWNER"];
 
 export function ApprovalRulesView({
   currentUser,
@@ -51,7 +54,8 @@ export function ApprovalRulesView({
   const [approverRoles, setApproverRoles] = useState<(Role | string)[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
 
-  const canEdit = currentUser.role === "OWNER";
+  // Every station login has full access — see @/lib/permissions.
+  const canEdit = true;
 
   const handleOpenEdit = (rule: ApprovalRule) => {
     setEditingRule(rule);
@@ -273,6 +277,10 @@ export function ApprovalRulesView({
                 <label className="text-[12.5px] font-medium text-text-muted block mb-2">
                   Authorized Checker Roles:
                 </label>
+                <p className="mb-2 text-[11.5px] text-text-muted">
+                  There's one role, so this doesn't restrict who can approve — any login can, except the person who
+                  made the request.
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {ALL_ROLES.map((r) => {
                     const isChecked = approverRoles.includes(r);

@@ -1,48 +1,45 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Building2,
-  PlusCircle,
-  FolderTree,
-  Layers,
   CreditCard,
   Wallet,
   Users,
-  ShieldAlert,
-  Radio,
+  LifeBuoy,
   Bell,
   Settings,
-  Database,
-  History,
-  Sliders,
+  ShieldCheck,
   LogOut,
   ChevronRight,
-  ShieldCheck,
+  Plus,
+  List,
+  BarChart3,
+  Activity,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { adminLogoutAction } from "@/lib/actions/platform";
 
-export interface AdminNavItem {
-  href: string;
-  label: string;
-  icon: any;
-  children?: {
+export interface NavSection {
+  title: string;
+  items: Array<{
     href: string;
     label: string;
-  }[];
+    icon: any;
+    subItems?: Array<{
+      href: string;
+      label: string;
+      icon: any;
+    }>;
+  }>;
 }
 
-export interface AdminNavSection {
-  group: string;
-  items: AdminNavItem[];
-}
-
-export const PUMP_SAAS_ADMIN_NAV: AdminNavSection[] = [
+export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
-    group: "CORE MANAGEMENT",
+    title: "OVERVIEW",
     items: [
       {
         href: "/admin",
@@ -50,57 +47,76 @@ export const PUMP_SAAS_ADMIN_NAV: AdminNavSection[] = [
         icon: LayoutDashboard,
       },
       {
-        href: "/admin/stations",
-        label: "Stations / Tenants",
-        icon: Building2,
-        children: [
-          { href: "/admin/stations", label: "All Fuel Stations" },
-          { href: "/admin/onboard", label: "Onboard New Station" },
-          { href: "/admin/stations/groups", label: "Station Categories / Groups" },
-        ],
-      },
-      {
-        href: "/admin/subscriptions",
-        label: "Subscriptions & Plans",
-        icon: CreditCard,
-        children: [
-          { href: "/admin/subscriptions", label: "Pricing Plans" },
-          { href: "/admin/billing", label: "Invoices & Billing" },
-          { href: "/admin/gateways", label: "Payment Gateways" },
-        ],
+        href: "/admin/analytics",
+        label: "Platform Analytics",
+        icon: BarChart3,
       },
     ],
   },
   {
-    group: "TECHNICAL & SYSTEM",
+    title: "TENANTS & STATIONS",
+    items: [
+      {
+        href: "/admin/stations",
+        label: "Stations / Tenants",
+        icon: Building2,
+        subItems: [
+          {
+            href: "/admin/stations",
+            label: "All Stations",
+            icon: List,
+          },
+          {
+            href: "/admin/stations/new",
+            label: "Add New Station",
+            icon: Plus,
+          },
+        ],
+      },
+      {
+        href: "/admin/subscriptions",
+        label: "Plans & Subscriptions",
+        icon: CreditCard,
+      },
+      {
+        href: "/admin/payments",
+        label: "Billing & Invoices",
+        icon: Wallet,
+      },
+    ],
+  },
+  {
+    title: "OPERATIONS & SUPPORT",
     items: [
       {
         href: "/admin/users",
-        label: "User & Role Access",
+        label: "Platform Users",
         icon: Users,
-        children: [
-          { href: "/admin/users", label: "Super Admin Staff" },
-          { href: "/admin/users/roles", label: "Global Permission Roles" },
-        ],
       },
       {
-        href: "/admin/broadcasts",
-        label: "Broadcast & Alerts",
-        icon: Radio,
-        children: [
-          { href: "/admin/broadcasts", label: "Regional Price Updates" },
-          { href: "/admin/broadcasts/notifications", label: "System Notifications" },
-        ],
+        href: "/admin/support",
+        label: "Support Desk",
+        icon: LifeBuoy,
       },
+      {
+        href: "/admin/notifications",
+        label: "System Notifications",
+        icon: Bell,
+      },
+    ],
+  },
+  {
+    title: "SYSTEM & SECURITY",
+    items: [
       {
         href: "/admin/settings",
-        label: "System Settings",
+        label: "Platform Settings",
         icon: Settings,
-        children: [
-          { href: "/admin/settings", label: "Database & Backups" },
-          { href: "/admin/audit", label: "Audit Logs" },
-          { href: "/admin/settings/preferences", label: "Platform Preferences" },
-        ],
+      },
+      {
+        href: "/admin/audit",
+        label: "Audit Logs",
+        icon: Activity,
       },
     ],
   },
@@ -114,124 +130,156 @@ export function AdminSidebar({
   adminUsername?: string;
 }) {
   const pathname = usePathname();
+  const [stationsOpen, setStationsOpen] = useState(true);
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border/70 bg-[#0C0A09] text-text select-none">
-      {/* Brand Header */}
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/50 px-5 bg-[#120F0D]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-[#1A1306] shadow-sm">
-            <ShieldCheck size={20} className="stroke-[2.5]" />
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-[268px] flex-col border-r border-zinc-800/80 bg-[#0C0A09] text-zinc-100 select-none shadow-2xl">
+      {/* 1. Brand & Platform Header */}
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-zinc-800/80 px-5 bg-gradient-to-b from-[#181412] to-[#0E0C0A]">
+        <Link href="/admin" className="flex items-center gap-3 group">
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-zinc-950 shadow-md shadow-amber-500/10 group-hover:scale-105 transition-transform">
+            <ShieldCheck size={22} className="stroke-[2.5]" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0C0A09] bg-emerald-500" />
           </div>
-          <div>
+
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-display text-[15px] font-extrabold tracking-tight text-text">
-                PUMP<span className="text-accent">-SAAS</span>
+              <span className="font-display text-[15px] font-extrabold tracking-tight text-white">
+                PUMP<span className="text-amber-400">SAAS</span>
               </span>
-              <span className="rounded bg-accent/20 px-1.5 py-0.2 font-mono text-[9px] font-bold text-accent uppercase">
-                ADMIN
+              <span className="rounded-[5px] bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-400 uppercase tracking-wider">
+                HQ
               </span>
             </div>
-            <div className="text-[11px] text-text-muted">
-              Multi-Station SaaS Platform
+            <div className="text-[11px] text-zinc-400 truncate">
+              Company Admin Console
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
-      {/* Navigation Sections */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {PUMP_SAAS_ADMIN_NAV.map((section) => (
-          <div key={section.group} className="space-y-1">
-            <div className="px-3 text-[10px] font-bold tracking-wider text-text-muted/60 uppercase font-data">
-              {section.group}
+      {/* 2. Quick Action CTA */}
+      <div className="px-3.5 pt-4 pb-1">
+        <Link
+          href="/admin/stations/new"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-zinc-950 p-2.5 text-[12.5px] font-bold hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] transition-all shadow-md shadow-amber-500/20"
+        >
+          <Plus size={15} className="stroke-[3]" />
+          <span>Add New Station</span>
+        </Link>
+      </div>
+
+      {/* 3. Categorized Navigation Menu with Crystal-Clear Contrast */}
+      <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-5">
+        {ADMIN_NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <div className="px-3 pb-1 text-[9.5px] font-bold tracking-[0.14em] text-zinc-500 uppercase font-mono">
+              {section.title}
             </div>
+
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isExact = pathname === item.href;
-                const isChildActive = item.children?.some(
-                  (c) => pathname === c.href || (c.href !== "/admin" && pathname.startsWith(c.href))
-                );
-                const isActive = isExact || isChildActive;
+                const isNestedActive =
+                  item.href !== "/admin" && pathname.startsWith(item.href);
+                const isActive = isExact || isNestedActive;
                 const Icon = item.icon;
+                const hasSubItems = !!item.subItems?.length;
 
-                const itemKey = `${section.group}-${item.href}-${item.label}`;
-                if (!item.children) {
+                if (hasSubItems) {
                   return (
-                    <Link
-                      key={itemKey}
-                      href={item.href}
-                      className={clsx(
-                        "flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors",
-                        isExact
-                          ? "bg-accent/15 text-accent font-semibold shadow-2xs"
-                          : "text-text-muted hover:bg-surface-hi hover:text-text"
-                      )}
-                    >
-                      <Icon
-                        size={16}
+                    <div key={item.href} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setStationsOpen(!stationsOpen)}
                         className={clsx(
-                          "shrink-0 transition-colors",
-                          isExact ? "text-accent" : "text-text-muted"
+                          "group relative flex w-full items-center justify-between rounded-xl px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer",
+                          isActive
+                            ? "bg-amber-400/15 text-amber-300 font-semibold border border-amber-400/30"
+                            : "text-zinc-300 hover:bg-white/[0.08] hover:text-white"
                         )}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon
+                            size={16}
+                            className={clsx(
+                              "shrink-0 transition-colors",
+                              isActive
+                                ? "text-amber-400"
+                                : "text-zinc-400 group-hover:text-amber-400"
+                            )}
+                          />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+
+                        <ChevronRight
+                          size={13}
+                          className={clsx(
+                            "transition-transform",
+                            isActive ? "text-amber-400" : "text-zinc-400 group-hover:text-white",
+                            stationsOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </button>
+
+                      {stationsOpen && (
+                        <div className="pl-4 pr-1 space-y-0.5 border-l border-zinc-800 ml-4 py-1 animate-fade-in">
+                          {item.subItems!.map((sub) => {
+                            const isSubActive = pathname === sub.href;
+                            const SubIcon = sub.icon;
+                            return (
+                              <Link
+                                key={sub.href}
+                                href={sub.href}
+                                className={clsx(
+                                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                                  isSubActive
+                                    ? "bg-amber-400/20 text-amber-300 font-bold"
+                                    : "text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+                                )}
+                              >
+                                <SubIcon
+                                  size={13}
+                                  className={
+                                    isSubActive
+                                      ? "text-amber-400"
+                                      : "text-zinc-400"
+                                  }
+                                />
+                                <span>{sub.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 }
 
                 return (
-                  <details
-                    key={itemKey}
-                    open={isActive}
-                    className="group space-y-0.5"
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={clsx(
+                      "group relative flex items-center justify-between rounded-xl px-3 py-2 text-[13px] font-medium transition-colors",
+                      isActive
+                        ? "bg-amber-400/15 text-amber-300 font-semibold border border-amber-400/30"
+                        : "text-zinc-300 hover:bg-white/[0.08] hover:text-white"
+                    )}
                   >
-                    <summary
-                      className={clsx(
-                        "flex items-center justify-between rounded-xl px-3 py-2 text-[13px] font-medium transition-colors cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-                        isActive
-                          ? "font-semibold text-text"
-                          : "text-text-muted hover:bg-surface-hi hover:text-text"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon
-                          size={16}
-                          className={clsx(
-                            "shrink-0 transition-colors",
-                            isActive ? "text-accent" : "text-text-muted"
-                          )}
-                        />
-                        <span className="truncate">{item.label}</span>
-                      </div>
-                      <ChevronRight
-                        size={14}
-                        className="text-text-muted shrink-0 transition-transform duration-150 group-open:rotate-90"
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon
+                        size={16}
+                        className={clsx(
+                          "shrink-0 transition-colors",
+                          isActive
+                            ? "text-amber-400"
+                            : "text-zinc-400 group-hover:text-amber-400"
+                        )}
                       />
-                    </summary>
-
-                    {/* Submenu Children */}
-                    <div className="ml-4 pl-2.5 border-l border-border/60 flex flex-col gap-0.5 py-1">
-                      {item.children.map((child) => {
-                        const childActive = pathname === child.href;
-                        const childKey = `${item.href}-${child.href}-${child.label}`;
-                        return (
-                          <Link
-                            key={childKey}
-                            href={child.href}
-                            className={clsx(
-                              "rounded-lg px-2.5 py-1.5 text-[12px] transition-colors truncate",
-                              childActive
-                                ? "bg-accent/15 text-accent font-semibold"
-                                : "text-text-muted hover:bg-surface-hi hover:text-text"
-                            )}
-                          >
-                            {child.label}
-                          </Link>
-                        );
-                      })}
+                      <span className="truncate">{item.label}</span>
                     </div>
-                  </details>
+                  </Link>
                 );
               })}
             </div>
@@ -239,19 +287,19 @@ export function AdminSidebar({
         ))}
       </div>
 
-      {/* Operator User Footer & Sign Out */}
-      <div className="border-t border-border/50 bg-[#120F0D] p-3">
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-[#171310] p-2.5">
+      {/* 4. Super Admin Profile & Sign Out Footer */}
+      <div className="border-t border-zinc-800/80 bg-[#14100E] p-3">
+        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-[#1A1513] p-2.5 shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 font-bold text-accent text-[12px]">
+            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400/25 to-amber-500/10 border border-amber-400/30 font-bold text-amber-400 text-[11.5px] font-mono">
               SA
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-bold text-text">
+              <div className="truncate text-[12px] font-bold text-white leading-tight">
                 {adminName}
               </div>
-              <div className="font-mono text-[10px] text-text-muted truncate">
-                @{adminUsername} · SUPER ADMIN
+              <div className="font-mono text-[10px] text-zinc-400 truncate">
+                @{adminUsername} · <span className="text-amber-400 font-semibold">SUPER ADMIN</span>
               </div>
             </div>
           </div>
@@ -259,10 +307,10 @@ export function AdminSidebar({
           <form action={adminLogoutAction}>
             <button
               type="submit"
-              title="Sign Out Platform Admin"
-              className="rounded-lg p-1.5 text-text-muted hover:bg-error/20 hover:text-error transition-colors cursor-pointer"
+              title="Sign Out Company Admin"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-rose-500/20 hover:text-rose-400 transition-colors cursor-pointer"
             >
-              <LogOut size={15} />
+              <LogOut size={14} />
             </button>
           </form>
         </div>

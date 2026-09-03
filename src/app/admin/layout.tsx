@@ -22,7 +22,7 @@ export default async function AdminLayout({
       />
 
       {/* 2. Main Executive Content Area */}
-      <div className="pl-64 flex flex-col min-h-screen">
+      <div className="pl-[268px] flex flex-col min-h-screen">
         {/* Executive Topbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/80 bg-surface/90 px-6 backdrop-blur-md">
           <div className="flex items-center gap-3">

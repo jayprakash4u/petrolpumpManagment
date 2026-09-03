@@ -1,82 +1,131 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Send, AlertTriangle, Info, CheckCircle2, ShieldAlert, Sparkles, Clock, Trash2 } from "lucide-react";
+import {
+  Bell,
+  Send,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  ShieldAlert,
+  Sparkles,
+  Clock,
+  Radio,
+  Building2,
+  CreditCard,
+  Wallet,
+  Users,
+  X,
+  Filter,
+} from "lucide-react";
+import { clsx } from "clsx";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Field, Input } from "@/components/ui/Field";
 
-export interface SystemNotification {
+export interface SystemNotificationItem {
   id: string;
+  category: "SUBSCRIPTION_EXPIRING" | "PAYMENT_SUCCESS" | "PAYMENT_FAILED" | "NEW_STATION" | "ANNOUNCEMENT";
   title: string;
   message: string;
-  type: "CRITICAL_ALERT" | "MAINTENANCE_NOTICE" | "REGULATORY_UPDATE" | "FEATURE_UPDATE";
-  targetStations: string;
-  sentAtBS: string;
-  status: "ACTIVE" | "ARCHIVED";
+  stationName?: string;
+  timestamp: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  status: "UNREAD" | "READ";
 }
 
 export function SystemNotificationsView() {
-  const [notifications, setNotifications] = useState<SystemNotification[]>([
+  const [notifications, setNotifications] = useState<SystemNotificationItem[]>([
     {
-      id: "sn-1",
-      title: "Scheduled IRD CBMS Tax Server Maintenance",
-      message: "The Inland Revenue Department (IRD) electronic billing server will undergo routine maintenance from 01:00 AM to 02:30 AM tonight. Local billing remains operational and will auto-sync.",
-      type: "MAINTENANCE_NOTICE",
-      targetStations: "All 20 Stations",
-      sentAtBS: "2083-05-08 10:00",
-      status: "ACTIVE",
+      id: "n-1",
+      category: "SUBSCRIPTION_EXPIRING",
+      title: "Subscription Expiring in 7 Days",
+      message: "Butwal Petroleum Center's 6-Month Pro Plan is expiring on 2083-05-15. Auto-renewal notice dispatched.",
+      stationName: "Butwal Petroleum Center",
+      timestamp: "10 mins ago",
+      priority: "HIGH",
+      status: "UNREAD",
     },
     {
-      id: "sn-2",
-      title: "Monsoon Decanting Safety Protocols Enforced",
-      message: "Heavy rainfall alert across Terai highway corridor. All stations must verify water-finding paste on tank dipsticks prior to product decanting.",
-      type: "CRITICAL_ALERT",
-      targetStations: "Highway & Terai Clusters",
-      sentAtBS: "2083-05-07 14:20",
-      status: "ACTIVE",
+      id: "n-2",
+      category: "PAYMENT_SUCCESS",
+      title: "Payment Received: Rs. 40,000",
+      message: "ABC Petrol Pump successfully paid for 12-Month Pro Plan renewal via NABIL Bank Transfer (Ref: TXN-NAB-994812).",
+      stationName: "ABC Petrol Pump",
+      timestamp: "1 hour ago",
+      priority: "MEDIUM",
+      status: "UNREAD",
     },
     {
-      id: "sn-3",
-      title: "Thermal Slip Header Format Compliance Notice",
-      message: "Reminder to ensure Station PAN (9 digits) and IRD Annexure 5 approval number is printed clearly on all customer receipts.",
-      type: "REGULATORY_UPDATE",
-      targetStations: "All 20 Stations",
-      sentAtBS: "2083-05-05 09:15",
-      status: "ACTIVE",
+      id: "n-3",
+      category: "NEW_STATION",
+      title: "New Station Registered & Provisioned",
+      message: "Janakpur Dham Fuel Center was onboarded with dedicated database [FuelStation_janakpur_fuel]. Admin user: @rameshwar.admin.",
+      stationName: "Janakpur Dham Fuel Center",
+      timestamp: "3 hours ago",
+      priority: "MEDIUM",
+      status: "READ",
+    },
+    {
+      id: "n-4",
+      category: "PAYMENT_FAILED",
+      title: "Online Renewal Payment Failed",
+      message: "Fonepay QR transaction of Rs. 12,000 for Eastern Oil Center timed out. Station flagged for manual follow-up.",
+      stationName: "Eastern Oil Center",
+      timestamp: "Yesterday",
+      priority: "HIGH",
+      status: "READ",
+    },
+    {
+      id: "n-5",
+      category: "ANNOUNCEMENT",
+      title: "System Maintenance Broadcast: IRD Sync Server",
+      message: "Scheduled cloud infrastructure upgrade tonight from 01:00 AM to 02:00 AM. Station POS billing will remain 100% operational offline.",
+      timestamp: "Yesterday",
+      priority: "LOW",
+      status: "READ",
     },
   ]);
 
-  const [showSendModal, setShowSendModal] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newMessage, setNewMessage] = useState("");
-  const [newType, setNewType] = useState<SystemNotification["type"]>("MAINTENANCE_NOTICE");
-  const [newTarget, setNewTarget] = useState("All 20 Stations");
+  const [activeCategory, setActiveCategory] = useState<string>("ALL");
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastTarget, setBroadcastTarget] = useState("All 128 Stations");
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
 
-  const handleSendNotification = (e: React.FormEvent) => {
+  const filteredNotifs = notifications.filter((n) => {
+    if (activeCategory !== "ALL" && n.category !== activeCategory) return false;
+    return true;
+  });
+
+  const handleSendBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
-    const newNotif: SystemNotification = {
-      id: `sn-${Date.now()}`,
-      title: newTitle,
-      message: newMessage,
-      type: newType,
-      targetStations: newTarget,
-      sentAtBS: "2083-05-08 12:50",
-      status: "ACTIVE",
+    const newBroadcast: SystemNotificationItem = {
+      id: `n-${Date.now()}`,
+      category: "ANNOUNCEMENT",
+      title: broadcastTitle,
+      message: `${broadcastMessage} (Target: ${broadcastTarget})`,
+      timestamp: "Just now",
+      priority: "MEDIUM",
+      status: "UNREAD",
     };
-    setNotifications([newNotif, ...notifications]);
-    setShowSendModal(false);
-    setNewTitle("");
-    setNewMessage("");
-    setSendSuccess(`System notification sent to "${newTarget}" dashboards.`);
-    setTimeout(() => setSendSuccess(null), 3000);
+    setNotifications([newBroadcast, ...notifications]);
+    setShowBroadcastModal(false);
+    setBroadcastTitle("");
+    setBroadcastMessage("");
+    setSendSuccess(`Announcement broadcast sent to "${broadcastTarget}".`);
+    setTimeout(() => setSendSuccess(null), 4000);
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
   };
 
   return (
     <div className="space-y-6">
-      {/* Header Bar */}
+      {/* 1. Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 shadow-xs">
         <div className="flex items-center gap-3.5">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-[#1A1306]">
@@ -84,17 +133,22 @@ export function SystemNotificationsView() {
           </div>
           <div>
             <h2 className="font-display text-[18px] font-bold text-text">
-              Platform Broadcasts & System Notifications (सूचना तथा सन्देश)
+              Platform Notifications & Broadcasts (सूचना तथा सन्देश केन्द्र)
             </h2>
             <p className="text-[12px] text-text-muted">
-              Dispatch urgent operational warnings, scheduled maintenance banners, and compliance reminders directly to station screens.
+              Live SaaS platform event stream: subscription expiring notices, payment status alerts, new registrations, and tenant broadcasts.
             </p>
           </div>
         </div>
 
-        <PrimaryButton onClick={() => setShowSendModal(true)} className="text-[13px] px-4 py-2.5">
-          <Send size={15} /> Send Broadcast Notice
-        </PrimaryButton>
+        <div className="flex items-center gap-2">
+          <GhostButton onClick={handleMarkAllRead} className="text-xs">
+            <CheckCircle2 size={14} /> Mark All Read
+          </GhostButton>
+          <PrimaryButton onClick={() => setShowBroadcastModal(true)} className="text-xs">
+            <Radio size={14} /> New Announcement Broadcast
+          </PrimaryButton>
+        </div>
       </div>
 
       {sendSuccess && (
@@ -103,138 +157,213 @@ export function SystemNotificationsView() {
         </div>
       )}
 
-      {/* KPI Stats */}
+      {/* 2. Platform Event Metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Active Broadcasts"
-          value={`${notifications.length} Active`}
+          label="Unread Alerts"
+          value={`${notifications.filter((n) => n.status === "UNREAD").length} Unread`}
           icon={Bell}
           tone="accent"
         />
         <StatCard
-          label="Target Forecourts"
-          value="20 Stations"
-          icon={CheckCircle2}
+          label="Expiring Alerts"
+          value={`${notifications.filter((n) => n.category === "SUBSCRIPTION_EXPIRING").length} Due`}
+          icon={Clock}
+          tone="warning"
+        />
+        <StatCard
+          label="Payment Confirmations"
+          value={`${notifications.filter((n) => n.category === "PAYMENT_SUCCESS").length} Confirmed`}
+          icon={CreditCard}
           tone="success"
         />
         <StatCard
-          label="Urgent Alerts"
-          value="1 Critical"
-          icon={AlertTriangle}
-          tone="error"
-        />
-        <StatCard
-          label="Read Acknowledgment"
-          value="98.5% Real-time"
-          icon={Clock}
+          label="New Stations Provisioned"
+          value={`${notifications.filter((n) => n.category === "NEW_STATION").length} Registered`}
+          icon={Building2}
           tone="text"
         />
       </div>
 
-      {/* Notifications Stream */}
-      <div className="grid grid-cols-1 gap-4">
-        {notifications.map((n) => (
-          <div
-            key={n.id}
-            className="rounded-2xl border border-border bg-surface p-5 space-y-3 shadow-xs"
+      {/* 3. Category Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+        {[
+          { key: "ALL", label: "All Events" },
+          { key: "SUBSCRIPTION_EXPIRING", label: "Subscriptions Expiring" },
+          { key: "PAYMENT_SUCCESS", label: "Payments Received" },
+          { key: "PAYMENT_FAILED", label: "Payment Alerts" },
+          { key: "NEW_STATION", label: "New Stations" },
+          { key: "ANNOUNCEMENT", label: "System Announcements" },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveCategory(key)}
+            className={clsx(
+              "rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer",
+              activeCategory === key
+                ? "bg-accent text-[#1A1306] shadow-xs"
+                : "border border-border bg-surface text-text hover:bg-surface-hi"
+            )}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="font-display text-[16px] font-bold text-text">{n.title}</h3>
-                  <Badge tone={n.type === "CRITICAL_ALERT" ? "error" : n.type === "MAINTENANCE_NOTICE" ? "accent" : "muted"}>
-                    {n.type.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                <div className="text-[11.5px] text-text-muted">
-                  Target: <strong className="text-text">{n.targetStations}</strong> · Dispatched: {n.sentAtBS}
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[12.5px] text-text-muted leading-relaxed">
-              {n.message}
-            </p>
-          </div>
+            {label}
+          </button>
         ))}
       </div>
 
-      {/* Send Modal */}
-      {showSendModal && (
+      {/* 4. Notification Items Feed */}
+      <div className="space-y-3">
+        {filteredNotifs.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-12 text-center text-text-muted text-xs">
+            No notifications found in this category.
+          </div>
+        ) : (
+          filteredNotifs.map((item) => {
+            const isUnread = item.status === "UNREAD";
+            return (
+              <div
+                key={item.id}
+                className={clsx(
+                  "rounded-2xl border p-4.5 transition-all shadow-xs space-y-2",
+                  isUnread
+                    ? "border-accent/40 bg-accent/5 ring-1 ring-accent/20"
+                    : "border-border bg-surface"
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={clsx(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-xs",
+                        item.category === "SUBSCRIPTION_EXPIRING" && "bg-warning/20 text-warning",
+                        item.category === "PAYMENT_SUCCESS" && "bg-success/20 text-success",
+                        item.category === "PAYMENT_FAILED" && "bg-error/20 text-error",
+                        item.category === "NEW_STATION" && "bg-accent/20 text-accent",
+                        item.category === "ANNOUNCEMENT" && "bg-blue-500/20 text-blue-400"
+                      )}
+                    >
+                      {item.category === "SUBSCRIPTION_EXPIRING" && <Clock size={16} />}
+                      {item.category === "PAYMENT_SUCCESS" && <Wallet size={16} />}
+                      {item.category === "PAYMENT_FAILED" && <AlertTriangle size={16} />}
+                      {item.category === "NEW_STATION" && <Building2 size={16} />}
+                      {item.category === "ANNOUNCEMENT" && <Radio size={16} />}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display font-bold text-text text-[14px]">
+                          {item.title}
+                        </span>
+                        <Badge
+                          tone={
+                            item.priority === "HIGH"
+                              ? "error"
+                              : item.priority === "MEDIUM"
+                              ? "warning"
+                              : "muted"
+                          }
+                        >
+                          {item.category.replace(/_/g, " ")}
+                        </Badge>
+                        {isUnread && (
+                          <span className="rounded bg-accent px-1.5 py-0.2 text-[9px] font-extrabold text-[#1A1306] uppercase">
+                            NEW
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[12.5px] text-text-muted leading-relaxed">
+                        {item.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-[11px] text-text-muted font-mono shrink-0">
+                    {item.timestamp}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. Modal: Send System Announcement Broadcast                              */}
+      {/* ========================================================================= */}
+      {showBroadcastModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
           <form
-            onSubmit={handleSendNotification}
+            onSubmit={handleSendBroadcast}
             className="w-full max-w-lg rounded-2xl border border-border bg-surface shadow-2xl p-6 space-y-4"
           >
-            <div className="border-b border-border pb-3">
-              <h3 className="font-display text-[16px] font-bold text-text">
-                Dispatch System Broadcast Notice
-              </h3>
-              <p className="text-[12px] text-text-muted">
-                Display this banner across station control dashboards.
-              </p>
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-[#1A1306]">
+                  <Radio size={16} />
+                </div>
+                <div>
+                  <h3 className="font-display text-[15px] font-bold text-text">
+                    Send System Announcement
+                  </h3>
+                  <div className="text-[11px] text-text-muted">
+                    Broadcast alert to station manager consoles
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(false)}
+                className="rounded-lg p-1.5 text-text-muted hover:bg-white/10 hover:text-text cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <Field label="Notice Title" htmlFor="nTitle">
-              <Input
-                id="nTitle"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="e.g. Scheduled Network Upgrade"
-                required
-              />
-            </Field>
+            <div className="space-y-3 text-[12.5px]">
+              <Field label="Announcement Title" htmlFor="bTitle">
+                <Input
+                  id="bTitle"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  placeholder="e.g. Scheduled System Upgrade Tonight"
+                  required
+                />
+              </Field>
 
-            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-medium text-text-muted block mb-1">
-                  Alert Severity
-                </label>
+                <label className="text-xs font-medium text-text block mb-1">Target Stations</label>
                 <select
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value as any)}
-                  className="w-full rounded-lg border border-border bg-bg p-2 text-[12.5px] text-text"
+                  value={broadcastTarget}
+                  onChange={(e) => setBroadcastTarget(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-bg p-2.5 text-xs text-text"
                 >
-                  <option value="MAINTENANCE_NOTICE">Maintenance Notice</option>
-                  <option value="CRITICAL_ALERT">Critical Operational Alert</option>
-                  <option value="REGULATORY_UPDATE">Regulatory / Tax Update</option>
-                  <option value="FEATURE_UPDATE">New Feature Announcement</option>
+                  <option value="All 128 Stations">All 128 Stations (Nationwide)</option>
+                  <option value="Kathmandu Valley Hubs">Kathmandu Valley Hubs Only</option>
+                  <option value="Highway & Terai Corridors">Highway & Terai Corridors</option>
+                  <option value="Enterprise Plan Tier">Enterprise Plan Clients Only</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-text-muted block mb-1">
-                  Target Stations
-                </label>
-                <select
-                  value={newTarget}
-                  onChange={(e) => setNewTarget(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg p-2 text-[12.5px] text-text"
-                >
-                  <option value="All 20 Stations">All 20 Stations (Nationwide)</option>
-                  <option value="Kathmandu Valley Metro">Kathmandu Valley Metro Hubs</option>
-                  <option value="Highway & Terai Clusters">Highway & Terai Clusters</option>
-                  <option value="Industrial Border Logistics">Industrial Border Hubs</option>
-                </select>
+                <label className="text-xs font-medium text-text block mb-1">Message Body</label>
+                <textarea
+                  rows={3}
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  placeholder="Detailed maintenance or policy notice..."
+                  className="w-full rounded-xl border border-border bg-bg p-3 text-xs text-text placeholder:text-text-muted/60 focus:border-accent focus:outline-none"
+                  required
+                />
               </div>
             </div>
 
-            <Field label="Broadcast Message Body" htmlFor="nMsg">
-              <Input
-                id="nMsg"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Detailed instructions for station attendants..."
-                required
-              />
-            </Field>
-
-            <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-              <GhostButton type="button" onClick={() => setShowSendModal(false)}>
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+              <GhostButton type="button" onClick={() => setShowBroadcastModal(false)}>
                 Cancel
               </GhostButton>
               <PrimaryButton type="submit">
-                Dispatch Broadcast
+                Send Broadcast
               </PrimaryButton>
             </div>
           </form>

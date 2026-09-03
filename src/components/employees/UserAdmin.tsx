@@ -1,29 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { UserPlus, UserMinus, UserCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
-import type { Role } from "@/lib/permissions";
-import {
-  createUserAction,
-  setUserActiveAction,
-  changeUserRoleAction,
-  type UserFormState,
-} from "@/lib/actions/users";
-import { ROLE_LABEL } from "@/lib/permissions";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { UserPlus, UserMinus, UserCheck, CheckCircle2 } from "lucide-react";
+import { createUserAction, setUserActiveAction, type UserFormState } from "@/lib/actions/users";
+import { Field, Input } from "@/components/ui/Field";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 
 const initialState: UserFormState = {};
-const ROLES: Role[] = ["CASHIER", "ACCOUNTANT", "ATTENDANT", "MANAGER", "OTHER", "OWNER"];
-
-const ROLE_HINT: Record<Role, string> = {
-  OWNER: "Station Admin: 100% full access to all station functions",
-  MANAGER: "Station Manager: Daily operations, rates, purchases, customers, reports",
-  CASHIER: "Shift Cashier: Sales billing, credit payments, own shift",
-  ACCOUNTANT: "Station Accountant: Sales view, expense vouchers, reports & exports",
-  ATTENDANT: "Pump Operator: Assigned nozzle pumps, meter readings, walk-in sales",
-  OTHER: "Other Staff: Custom starting profile",
-};
 
 export function AddEmployeeForm() {
   const [state, action, pending] = useActionState(createUserAction, initialState);
@@ -50,10 +33,10 @@ function AddEmployeeFields({
   pending: boolean;
   error?: string;
 }) {
-  const [role, setRole] = useState<Role>("ATTENDANT");
-
   return (
     <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="role" value="OWNER" />
+
       <Field label="Full name" htmlFor="name">
         <Input id="name" name="name" required autoComplete="off" placeholder="Ramesh Thapa" />
       </Field>
@@ -85,18 +68,9 @@ function AddEmployeeFields({
         />
       </Field>
 
-      <div>
-        <Field label="Role" htmlFor="newRole">
-          <Select id="newRole" name="role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <p className="mt-1 text-[11.5px] text-text-muted">{ROLE_HINT[role]}</p>
-      </div>
+      <p className="text-[11.5px] text-text-muted">
+        This account will be Pump Admin — full access to this station, same as every other login.
+      </p>
 
       {error && (
         <div role="alert" className="animate-fade-in rounded-lg border border-error/30 bg-error/8 px-3 py-2 text-[12.5px] text-error">
@@ -141,40 +115,6 @@ export function ActiveToggle({ userId, active, name }: { userId: string; active:
           </GhostButton>
         )}
         {!active && <UserCheck size={13} className="text-success" />}
-      </div>
-      {state.error && <span className="max-w-[240px] text-right text-[11px] text-error">{state.error}</span>}
-    </form>
-  );
-}
-
-/** Inline role change, shown only to a Station Admin. */
-export function RoleSelect({ userId, role }: { userId: string; role: Role }) {
-  const [state, action, pending] = useActionState(changeUserRoleAction, initialState);
-  const [next, setNext] = useState<Role>(role);
-
-  return (
-    <form action={action} className="inline-flex flex-col items-end gap-1">
-      <input type="hidden" name="userId" value={userId} />
-      <div className="flex items-center gap-1.5">
-        <Select
-          name="role"
-          value={next}
-          onChange={(e) => setNext(e.target.value as Role)}
-          className="w-auto px-2 py-1 text-[12px]"
-          aria-label="Role"
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABEL[r]}
-            </option>
-          ))}
-        </Select>
-        {next !== role && (
-          <PrimaryButton type="submit" disabled={pending} className="px-2.5 py-1.5 text-[12px]">
-            <ShieldCheck size={13} />
-            {pending ? "…" : "Save"}
-          </PrimaryButton>
-        )}
       </div>
       {state.error && <span className="max-w-[240px] text-right text-[11px] text-error">{state.error}</span>}
     </form>

@@ -34,7 +34,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 const { prisma } = await import("@/lib/db");
 const { recordSaleAction } = await import("@/lib/actions/sales");
 const { recordDeliveryAction, updateFuelRateAction } = await import("@/lib/actions/stock");
-const { createUserAction, changeUserRoleAction } = await import("@/lib/actions/users");
+const { createUserAction } = await import("@/lib/actions/users");
 const { recordPaymentAction } = await import("@/lib/actions/customers");
 const { startShiftAction } = await import("@/lib/actions/shifts");
 const { getDashboardData } = await import("@/lib/queries/dashboard");
@@ -171,7 +171,7 @@ describe("identity is per tenant", () => {
     currentUser = alpha.owner;
     const dupe = await createUserAction(
       {},
-      form({ name: "Impostor", username: SHARED_USERNAME, password: "supersecret", role: "CASHIER" })
+      form({ name: "Impostor", username: SHARED_USERNAME, password: "supersecret", role: "OWNER" })
     );
 
     expect(dupe.error).toMatch(/already uses that username/);
@@ -184,14 +184,14 @@ describe("identity is per tenant", () => {
     currentUser = beta.owner;
     const result = await createUserAction(
       {},
-      form({ name: "Beta Cashier", username: "shared.staff", password: "supersecret", role: "CASHIER" })
+      form({ name: "Beta Cashier", username: "shared.staff", password: "supersecret", role: "OWNER" })
     );
     expect(result.error).toBeUndefined();
 
     currentUser = alpha.owner;
     const sameAtAlpha = await createUserAction(
       {},
-      form({ name: "Alpha Cashier", username: "shared.staff", password: "supersecret", role: "CASHIER" })
+      form({ name: "Alpha Cashier", username: "shared.staff", password: "supersecret", role: "OWNER" })
     );
     expect(sameAtAlpha.error).toBeUndefined();
 
@@ -334,14 +334,6 @@ describe("write paths never cross tenants", () => {
 
     expect(result.error).toMatch(/isn't available at this station/);
     expect((await prisma.tank.findUniqueOrThrow({ where: { id: beta.tankId } })).ratePerL.toString()).toBe("200");
-  });
-
-  it("cannot change the role of another pump's staff", async () => {
-    currentUser = alpha.owner;
-    const result = await changeUserRoleAction({}, form({ userId: beta.owner.id, role: "ATTENDANT" }));
-
-    expect(result.error).toMatch(/isn't at this station/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: beta.owner.id } })).role).toBe("OWNER");
   });
 
   it("cannot start a shift for another pump's staff", async () => {

@@ -1,14 +1,10 @@
 import "@prisma/client";
 
 declare module "@prisma/client" {
-  export type Role = "OWNER" | "MANAGER" | "CASHIER" | "ACCOUNTANT" | "ATTENDANT" | "OTHER";
+  // Kept in sync with @/lib/permissions — one role, "Pump Admin", full access.
+  export type Role = "OWNER";
   export const Role: {
     readonly OWNER: "OWNER";
-    readonly MANAGER: "MANAGER";
-    readonly CASHIER: "CASHIER";
-    readonly ACCOUNTANT: "ACCOUNTANT";
-    readonly ATTENDANT: "ATTENDANT";
-    readonly OTHER: "OTHER";
   };
 
   export type FuelType = "PETROL" | "DIESEL" | "CNG";

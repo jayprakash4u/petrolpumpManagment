@@ -113,6 +113,23 @@ describe("presetRange", () => {
     expect(r.from.getDate()).not.toBe(1);
     expect(rangeDays(r)).toBe(3);
   });
+
+  it("this week starts on Sunday, not Monday", () => {
+    // NOW is Wednesday 19 Aug 2026 -> the week's Sunday is 16 Aug.
+    const r = presetRange("week", NOW);
+    expect(r.from.getDay()).toBe(0);
+    expect(r.from.getDate()).toBe(16);
+    expect(rangeDays(r)).toBe(4); // Sun, Mon, Tue, Wed
+  });
+
+  it("this year means the BIKRAM SAMBAT year, not the Gregorian one", () => {
+    // NOW is 2083-05-03 BS, so "this year" opens on Baishakh 1, 2083 —
+    // mid-April in Gregorian terms, months before the Gregorian Jan 1.
+    const r = presetRange("year", NOW);
+    expect(toBS(r.from)).toEqual({ year: 2083, month: 1, day: 1 });
+    expect(r.from.getFullYear()).toBe(2026);
+    expect(r.from.getMonth()).toBeLessThan(NOW.getMonth());
+  });
 });
 
 describe("resolveRange", () => {

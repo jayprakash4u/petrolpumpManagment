@@ -303,4 +303,14 @@ describe("format guidance that leaks nothing", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("Invalid station code, username, or password.");
   });
+
+  it("signs in fine with @ in the username, as long as it isn't shaped like an email", async () => {
+    const hash = await bcrypt.hash(PASSWORD, 10);
+    await prisma.user.create({
+      data: { stationId: alphaId, name: "At Sign", username: "nepal@01", passwordHash: hash, role: "OWNER" },
+    });
+
+    const result = await login("alpha-pump", "nepal@01", PASSWORD);
+    expect(result.ok).toBe(true);
+  });
 });

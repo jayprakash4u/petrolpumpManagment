@@ -56,7 +56,8 @@ export function PayrollView({
   const [editOvertimeRate, setEditOvertimeRate] = useState("");
   const [editPfPct, setEditPfPct] = useState("");
 
-  const canManage = currentUser.role === "OWNER" || currentUser.role === "MANAGER";
+  // Every station login has full access — see @/lib/permissions.
+  const canManage = true;
 
   const refreshData = () => {
     setPayroll(getMonthlyPayroll());

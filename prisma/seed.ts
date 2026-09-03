@@ -140,8 +140,9 @@ async function main() {
     },
   });
 
-  // Create Staff Roster
-  console.log("   Creating Staff: Admin, Manager, Cashier, Accountant, Attendants...");
+  // Create Staff Roster — every login is Pump Admin (role: "OWNER"), the
+  // only role there is; no Manager/Cashier/Accountant/Attendant tier.
+  console.log("   Creating Staff (all Pump Admin — full access)...");
   const [owner, manager, cashier, accountant, attendant, attendant2] = await Promise.all([
     tenantPrisma.user.create({
       data: {
@@ -152,7 +153,7 @@ async function main() {
         phone: "98510 11223",
         employeeId: "EMP-001",
         role: "OWNER",
-        permissions: null, // Full 100% access
+        permissions: null,
         passwordHash,
         active: true,
       },
@@ -165,7 +166,7 @@ async function main() {
         email: "manager@shreepetroleum.test",
         phone: "98410 44556",
         employeeId: "EMP-002",
-        role: "MANAGER",
+        role: "OWNER",
         permissions: null,
         passwordHash,
         active: true,
@@ -179,8 +180,8 @@ async function main() {
         email: "cashier@shreepetroleum.test",
         phone: "98610 77889",
         employeeId: "EMP-003",
-        role: "CASHIER",
-        permissions: JSON.stringify(["viewSales", "recordSale", "processPayment", "recordCustomerPayment", "manageOwnShift"]),
+        role: "OWNER",
+        permissions: null,
         passwordHash,
         active: true,
       },
@@ -193,8 +194,8 @@ async function main() {
         email: "accountant@shreepetroleum.test",
         phone: "98012 33445",
         employeeId: "EMP-004",
-        role: "ACCOUNTANT",
-        permissions: JSON.stringify(["viewSales", "viewExpenses", "manageExpenses", "viewReports", "exportReports", "manageCustomers"]),
+        role: "OWNER",
+        permissions: null,
         passwordHash,
         active: true,
       },
@@ -206,8 +207,8 @@ async function main() {
         username: "ramesh",
         phone: "98123 55667",
         employeeId: "EMP-005",
-        role: "ATTENDANT",
-        permissions: JSON.stringify(["viewPumps", "recordMeterReadings", "recordSale", "manageOwnShift"]),
+        role: "OWNER",
+        permissions: null,
         passwordHash,
         active: true,
       },
@@ -219,8 +220,8 @@ async function main() {
         username: "bikash",
         phone: "98234 66778",
         employeeId: "EMP-006",
-        role: "ATTENDANT",
-        permissions: JSON.stringify(["viewPumps", "recordMeterReadings", "recordSale", "manageOwnShift"]),
+        role: "OWNER",
+        permissions: null,
         passwordHash,
         active: true,
       },
@@ -338,11 +339,8 @@ async function main() {
   console.log("  - Tenant Registered: 'Shree Petroleum' -> DB [FuelStation_shree_petroleum]");
   console.log("\nStation DB [FuelStation_shree_petroleum]:");
   console.log("  - Station Code: shree-petroleum (Password: password123)");
-  console.log(`  - Station Admin (Owner): @${owner.username} (100% full access)`);
-  console.log(`  - Manager:               @${manager.username}`);
-  console.log(`  - Cashier:               @${cashier.username}`);
-  console.log(`  - Accountant:            @${accountant.username}`);
-  console.log(`  - Pump Operators:        @${attendant.username}, @${attendant2.username}`);
+  console.log("  - Every login below is Pump Admin — full access, no role tiers:");
+  console.log(`    @${owner.username}, @${manager.username}, @${cashier.username}, @${accountant.username}, @${attendant.username}, @${attendant2.username}`);
 }
 
 function hoursAgo(h: number): Date {

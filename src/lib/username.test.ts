@@ -25,8 +25,8 @@ describe("normalizeUsername", () => {
     expect(normalizeUsername("ramesh.thapa_1-x")).toBe("ramesh.thapa_1-x");
   });
 
-  it("drops characters that would be ambiguous in a log or URL", () => {
-    expect(normalizeUsername("ramesh@thapa!")).toBe("rameshthapa");
+  it("keeps @ but drops other characters that would be ambiguous in a log or URL", () => {
+    expect(normalizeUsername("ramesh@thapa!")).toBe("ramesh@thapa");
     expect(normalizeUsername("ram/esh")).toBe("ramesh");
   });
 
@@ -57,9 +57,13 @@ describe("normalizeUsername", () => {
   });
 
   it("returns empty when nothing usable remains", () => {
-    expect(normalizeUsername("@@@")).toBe("");
     expect(normalizeUsername("   ")).toBe("");
     expect(normalizeUsername("...")).toBe("");
+  });
+
+  it("allows @ as an ordinary character, so a username like nepal@01 round-trips", () => {
+    expect(normalizeUsername("nepal@01")).toBe("nepal@01");
+    expect(normalizeUsername("Nepal@01")).toBe("nepal@01");
   });
 });
 

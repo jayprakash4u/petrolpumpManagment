@@ -13,7 +13,15 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { Role, User } from "@prisma/client";
+import type { User } from "@prisma/client";
+
+/**
+ * There's one real `Role` value now ("OWNER" — every login has full
+ * access, see @/lib/permissions). These labels aren't roles in that
+ * sense; they're just names for distinct test actors, each created with
+ * the real `role: "OWNER"`.
+ */
+type ActorLabel = "OWNER" | "MANAGER" | "CASHIER" | "ATTENDANT";
 
 const testDir = mkdtempSync(path.join(tmpdir(), "fsm-credit-"));
 const testDbPath = path.join(testDir, "test.db");
@@ -40,7 +48,7 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 let stationId: string;
 let customerId: string;
 let tankId: string;
-const users: Record<Role, User> = {} as Record<Role, User>;
+const users: Record<ActorLabel, User> = {} as Record<ActorLabel, User>;
 
 beforeAll(() => {
   execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], {
@@ -71,9 +79,9 @@ beforeEach(async () => {
   const station = await prisma.station.create({ data: { slug: "test-station", name: "Test Station", address: "Test Rd" } });
   stationId = station.id;
 
-  for (const role of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as Role[]) {
-    users[role] = await prisma.user.create({
-      data: { stationId, name: role + " Person", username: role.toLowerCase() + ".user", passwordHash: "x", role },
+  for (const label of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as ActorLabel[]) {
+    users[label] = await prisma.user.create({
+      data: { stationId, name: label + " Person", username: label.toLowerCase() + ".user", passwordHash: "x", role: "OWNER" },
     });
   }
   currentUser = users.CASHIER;
@@ -347,12 +355,12 @@ describe("updateCreditLimitAction", () => {
     expect((await prisma.customer.findUniqueOrThrow({ where: { id: customerId } })).creditLimit.toString()).toBe("20000");
   });
 
-  it("is refused for a cashier — raising a credit line is not a till operation", async () => {
+  it("isn't restricted to an owner or manager — a cashier can raise a credit line too", async () => {
     currentUser = users.CASHIER;
     const result = await updateCreditLimitAction({}, form({ customerId, creditLimit: "999999" }));
 
-    expect(result.error).toMatch(/owner or manager/);
-    expect((await prisma.customer.findUniqueOrThrow({ where: { id: customerId } })).creditLimit.toString()).toBe("20000");
+    expect(result.error).toBeUndefined();
+    expect((await prisma.customer.findUniqueOrThrow({ where: { id: customerId } })).creditLimit.toString()).toBe("999999");
   });
 });
 

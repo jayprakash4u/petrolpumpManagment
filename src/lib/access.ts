@@ -17,81 +17,22 @@ export interface PermissionDefinition {
   sidebarMenu: string;
 }
 
+/** One entry — every staff login at a station is "Pump Admin" with full access. */
 export const STATION_ROLES: RoleInfo[] = [
   {
     role: "OWNER",
-    name: "Station Admin / Owner",
+    name: "Pump Admin",
     badgeTone: "accent",
-    summary: "Complete 100% authority over station financials, dispenser rates, employee accounts, and system configuration.",
+    summary:
+      "Every staff login has complete authority over this station — sales and billing, forecourt and pumps, stock and pricing, expenses, credit customers, reports, and staff accounts. There is no separate Manager, Cashier, Accountant, or Attendant tier.",
     responsibilities: [
-      "Create, edit, and customize employee accounts and granular permissions",
-      "Update fuel pricing and tank master configurations",
-      "Review station revenue, profit & loss, VAT returns, and audit logs",
-      "Authorize high-value expense vouchers and manage platform sync",
+      "Record sales, receive payments, and manage credit customers",
+      "Record fuel deliveries, dip readings, and meter/nozzle reconciliation",
+      "Set fuel pricing and manage tank configuration",
+      "Record and approve expenses, and generate financial & VAT reports",
+      "Create staff accounts and review the audit log",
     ],
     staffCount: 1,
-  },
-  {
-    role: "MANAGER",
-    name: "Station Manager",
-    badgeTone: "accent",
-    summary: "Oversees daily forecourt operations, stock deliveries, dispenser pricing, credit customers, and shift logs.",
-    responsibilities: [
-      "Record tanker fuel deliveries and procurement invoices",
-      "Monitor daily tank dip readings and nozzle meter reconciliations",
-      "Manage corporate credit accounts and approve vehicle fills",
-      "Review daily sales reports and attendant shift closures",
-    ],
-    staffCount: 1,
-  },
-  {
-    role: "CASHIER",
-    name: "Shift Cashier",
-    badgeTone: "success",
-    summary: "Handles cash counter, customer payments, credit ledger settlements, and sales register.",
-    responsibilities: [
-      "Process quick sales and print billing receipts",
-      "Record credit customer payments and settlements",
-      "Manage cash drawer and shift handover reconciliation",
-      "Redeem customer fuel coupons",
-    ],
-    staffCount: 1,
-  },
-  {
-    role: "ACCOUNTANT",
-    name: "Station Accountant",
-    badgeTone: "success",
-    summary: "Manages financial ledgers, operational expenses, customer credit limits, and IRD/VAT reports.",
-    responsibilities: [
-      "Record and approve operational expense vouchers and petty cash",
-      "Inspect sales journals, billing registers, and daily collections",
-      "Generate monthly VAT returns and auditor confirmation schedules",
-      "Export Excel and tax-compliant transaction reports",
-    ],
-    staffCount: 1,
-  },
-  {
-    role: "ATTENDANT",
-    name: "Pump Operator",
-    badgeTone: "muted",
-    summary: "Dispenses fuel at the nozzles, records walk-in transactions, and logs shift electronic totalizers.",
-    responsibilities: [
-      "Start and close assigned nozzle shift meter readings",
-      "Dispense petrol, diesel, or CNG to vehicles",
-      "Issue cash sale receipts to drivers and record odometer/vehicle plates",
-    ],
-    staffCount: 2,
-  },
-  {
-    role: "OTHER",
-    name: "Other Staff",
-    badgeTone: "muted",
-    summary: "Customizable starting profile for trainees, forecourt cleaners, or specialized personnel.",
-    responsibilities: [
-      "Operate assigned shifts or assist forecourt duties",
-      "Customizable permissions assigned directly by Station Admin",
-    ],
-    staffCount: 0,
   },
 ];
 

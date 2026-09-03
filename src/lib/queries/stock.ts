@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { requireTenantDb } from "@/lib/tenant-db";
-import { ullage, fillPercent, isLowStock, costPerLiter, marginPerLiter } from "@/lib/stock-math";
+import { ullage, fillPercent, isLowStock } from "@/lib/stock-math";
 
 const D = Prisma.Decimal;
 
@@ -12,23 +12,8 @@ const D = Prisma.Decimal;
  */
 export async function getStockPageData(_stationId?: string) {
   const { prisma: tenantDb, stationId } = await requireTenantDb();
-  const [tanks, purchases, rateHistory, soldSinceRefill] = await Promise.all([
+  const [tanks, rateHistory, soldSinceRefill] = await Promise.all([
     tenantDb.tank.findMany({ where: { stationId }, orderBy: { fuel: "asc" } }),
-    tenantDb.purchase.findMany({
-      where: { stationId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        fuel: true,
-        liters: true,
-        totalCost: true,
-        supplier: true,
-        invoiceNo: true,
-        createdAt: true,
-        recordedBy: { select: { name: true } },
-      },
-    }),
     tenantDb.fuelRateHistory.findMany({
       where: { tank: { stationId } },
       orderBy: { changedAt: "desc" },
@@ -76,15 +61,6 @@ export async function getStockPageData(_stationId?: string) {
       levelL: t.levelL.toString(),
       capacityL: t.capacityL.toString(),
       room: t.room.toString(),
-    })),
-    purchases: purchases.map((p) => ({
-      ...p,
-      costPerL: costPerLiter(p.totalCost, p.liters),
-      margin: marginPerLiter(
-        tanks.find((t) => t.fuel === p.fuel)?.ratePerL ?? new D(0),
-        p.totalCost,
-        p.liters
-      ),
     })),
     rateHistory,
     totalStockL: tankRows.reduce((sum, t) => sum.add(t.levelL), new D(0)),

@@ -1,28 +1,29 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { TruckIcon, CheckCircle2 } from "lucide-react";
 import { clsx } from "clsx";
 import { recordDeliveryAction, type DeliveryFormState } from "@/lib/actions/stock";
 import type { StockTankOption } from "@/lib/queries/stock";
+import type { Supplier } from "@/lib/purchases";
+import { MOCK_SUPPLIERS } from "@/lib/mock/purchases";
 import { FUEL_LABEL } from "@/lib/fuel";
 import { Field, Input, Select } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 
 const initialState: DeliveryFormState = {};
 
+// Same key SuppliersTable.tsx saves to — there's no server-side supplier
+// store yet, so this is the one place a station's supplier list actually
+// lives. Reading it here is what makes "the suppliers I added" show up.
+const SUPPLIERS_STORAGE_KEY = "fsm_suppliers";
+const OTHER_SUPPLIER = "__other__";
+
 const rs = (n: number) => "Rs " + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
-export function DeliveryForm({ tanks, canRecord }: { tanks: StockTankOption[]; canRecord: boolean }) {
+export function DeliveryForm({ tanks }: { tanks: StockTankOption[] }) {
   const [state, action, pending] = useActionState(recordDeliveryAction, initialState);
-
-  if (!canRecord) {
-    return (
-      <p className="rounded-lg border border-border bg-bg px-4 py-3 text-[13.5px] text-text-muted">
-        Only an owner or manager can record a delivery.
-      </p>
-    );
-  }
 
   return (
     <>
@@ -58,6 +59,22 @@ function DeliveryFields({
   const [tankId, setTankId] = useState(tanks[0]?.id ?? "");
   const [liters, setLiters] = useState("");
   const [totalCost, setTotalCost] = useState("");
+  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
+  const [supplierChoice, setSupplierChoice] = useState("");
+  const [customSupplier, setCustomSupplier] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SUPPLIERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setSuppliers(parsed);
+      }
+    } catch {}
+  }, []);
+
+  const activeSuppliers = suppliers.filter((s) => s.active);
+  const supplierName = supplierChoice === OTHER_SUPPLIER ? customSupplier : supplierChoice;
 
   const tank = tanks.find((t) => t.id === tankId) ?? tanks[0];
   const room = Number(tank?.room ?? 0);
@@ -110,12 +127,44 @@ function DeliveryFields({
 
       <div className="grid grid-cols-2 gap-2">
         <Field label="Supplier" htmlFor="supplier">
-          <Input id="supplier" name="supplier" placeholder="Nepal Oil Corp." />
+          <Select
+            id="supplier"
+            value={supplierChoice}
+            onChange={(e) => setSupplierChoice(e.target.value)}
+          >
+            <option value="" disabled>
+              Choose a supplier…
+            </option>
+            {activeSuppliers.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+            <option value={OTHER_SUPPLIER}>Other (not listed)…</option>
+          </Select>
         </Field>
         <Field label="Invoice no. (optional)" htmlFor="invoiceNo">
           <Input id="invoiceNo" name="invoiceNo" placeholder="NOC-4821" />
         </Field>
       </div>
+
+      {supplierChoice === OTHER_SUPPLIER && (
+        <Field label="Supplier name" htmlFor="customSupplier">
+          <Input
+            id="customSupplier"
+            value={customSupplier}
+            onChange={(e) => setCustomSupplier(e.target.value)}
+            placeholder="Not yet in your supplier directory"
+            autoFocus
+          />
+        </Field>
+      )}
+
+      <input type="hidden" name="supplier" value={supplierName} />
+
+      <p className="text-[11px] text-text-muted">
+        Managing suppliers? <Link href="/purchases/suppliers" className="text-accent hover:underline">Open the supplier directory</Link>.
+      </p>
 
       <div className="rounded-xl border border-border bg-bg px-4 py-3 text-[12px]">
         <div className="flex items-baseline justify-between">
@@ -161,7 +210,11 @@ function DeliveryFields({
         </div>
       )}
 
-      <PrimaryButton type="submit" disabled={pending || !derived || overCapacity} className="w-full py-2.5">
+      <PrimaryButton
+        type="submit"
+        disabled={pending || !derived || overCapacity || supplierName.trim().length < 2}
+        className="w-full py-2.5"
+      >
         <TruckIcon size={15} />
         {pending ? "Recording…" : "Record Delivery"}
       </PrimaryButton>

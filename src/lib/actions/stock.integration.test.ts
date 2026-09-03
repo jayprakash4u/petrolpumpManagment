@@ -10,7 +10,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { User } from "@prisma/client";
-import type { Role } from "@/lib/permissions";
+
+/**
+ * There's one real `Role` value now ("OWNER" — every login has full
+ * access, see @/lib/permissions). These labels aren't roles in that
+ * sense; they're just names for four distinct test actors. Every one of
+ * them is created with the real `role: "OWNER"`.
+ */
+type ActorLabel = "OWNER" | "MANAGER" | "CASHIER" | "ATTENDANT";
 
 const testDir = mkdtempSync(path.join(tmpdir(), "fsm-stock-"));
 const testDbPath = path.join(testDir, "test.db");
@@ -35,7 +42,7 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 
 let stationId: string;
 let tankId: string;
-const users: Record<Role, User> = {} as Record<Role, User>;
+const users: Record<ActorLabel, User> = {} as Record<ActorLabel, User>;
 
 beforeAll(() => {
   execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], {
@@ -66,9 +73,9 @@ beforeEach(async () => {
   const station = await prisma.station.create({ data: { slug: "test-station", name: "Test Station", address: "Test Rd" } });
   stationId = station.id;
 
-  for (const role of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as Role[]) {
-    users[role] = await prisma.user.create({
-      data: { stationId, name: role, username: role.toLowerCase() + ".user", passwordHash: "x", role },
+  for (const label of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as ActorLabel[]) {
+    users[label] = await prisma.user.create({
+      data: { stationId, name: label, username: label.toLowerCase() + ".user", passwordHash: "x", role: "OWNER" },
     });
   }
   currentUser = users.MANAGER;
@@ -200,13 +207,13 @@ describe("recordDeliveryAction — capacity protection", () => {
     expect((await prisma.tank.findUniqueOrThrow({ where: { id: foreign.id } })).levelL.toString()).toBe("0");
   });
 
-  it("is refused for a cashier or attendant", async () => {
-    for (const role of ["CASHIER", "ATTENDANT"] as const) {
-      currentUser = users[role];
+  it("isn't restricted to an owner or manager — any login can record a delivery", async () => {
+    for (const label of ["CASHIER", "ATTENDANT"] as const) {
+      currentUser = users[label];
       const result = await recordDeliveryAction({}, delivery());
-      expect(result.error, role).toMatch(/owner or manager/);
+      expect(result.error, label).toBeUndefined();
     }
-    expect(await prisma.purchase.count()).toBe(0);
+    expect(await prisma.purchase.count()).toBe(2);
   });
 });
 
@@ -288,13 +295,16 @@ describe("updateFuelRateAction", () => {
     expect((await prisma.tank.findUniqueOrThrow({ where: { id: tankId } })).ratePerL.toString()).toBe("119");
   });
 
-  it("is refused for a cashier or attendant", async () => {
-    for (const role of ["CASHIER", "ATTENDANT"] as const) {
-      currentUser = users[role];
-      const result = await updateFuelRateAction({}, reprice());
-      expect(result.error, role).toMatch(/owner or manager/);
-    }
-    expect((await prisma.tank.findUniqueOrThrow({ where: { id: tankId } })).ratePerL.toString()).toBe("100");
+  it("isn't restricted to an owner or manager — any login can reprice", async () => {
+    currentUser = users.CASHIER;
+    const first = await updateFuelRateAction({}, reprice({ newRate: "105.00", expectedRate: "100.00" }));
+    expect(first.error).toBeUndefined();
+
+    currentUser = users.ATTENDANT;
+    const second = await updateFuelRateAction({}, reprice({ newRate: "110.00", expectedRate: "105.00" }));
+    expect(second.error).toBeUndefined();
+
+    expect((await prisma.tank.findUniqueOrThrow({ where: { id: tankId } })).ratePerL.toString()).toBe("110");
   });
 
   it("will not reprice a tank at another station", async () => {

@@ -75,9 +75,10 @@ export interface NavItem {
   /** Routes not yet built land here — shown, but not clickable, so the shell reads as the whole app from day one. */
   enabled: boolean;
   /**
-   * Hides the item from roles that can't use the page at all. Purely
-   * cosmetic — the page and every action behind it re-check the same
-   * permission server-side, so hiding a link is never the control.
+   * Not currently read anywhere — every station login sees every item and
+   * has full access underneath it (see `can` in @/lib/permissions). Left in
+   * place as a label for what a page is nominally "about," and as a hook
+   * if per-role visibility is ever reintroduced.
    */
   permission?: Permission;
   /** Shown on hover for an unbuilt item, so "SOON" isn't the whole story. */

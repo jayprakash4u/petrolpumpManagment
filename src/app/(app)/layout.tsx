@@ -18,7 +18,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <DashboardShell
-      userName={user.name}
       userRole={user.role}
       stationName={user.station.name}
       logoUrl={user.station.logoUrl}

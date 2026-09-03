@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
-import { can, type Role, type Permission, ROLE_LABEL } from "@/lib/permissions";
+import { ROLE_LABEL } from "@/lib/permissions";
 import { normalizeUsername, checkUsername, USERNAME_PROBLEM_MESSAGE } from "@/lib/username";
 
 /** Matches the cost factor used by the seed, so demo and real accounts verify at the same speed. */
@@ -25,30 +25,15 @@ const CreateUserSchema = z.object({
   email: z.string().trim().max(200).optional(),
   employeeId: z.string().trim().max(50).optional(),
   password: z.string().min(8, "Password must be at least 8 characters").max(200),
-  role: z.enum(["OWNER", "MANAGER", "CASHIER", "ACCOUNTANT", "ATTENDANT", "OTHER"]),
-  permissions: z.array(z.string()).optional(),
+  // The only role there is — see @/lib/permissions. Still posted as a
+  // hidden field by the form rather than assumed here, so a stale client
+  // sending anything else fails validation instead of being silently
+  // coerced.
+  role: z.literal("OWNER"),
 });
 
 export async function createUserAction(_prev: UserFormState, formData: FormData): Promise<UserFormState> {
   const actor = await requireUser();
-  if (!can(actor.role as Role, "manageUsers")) {
-    return { error: "Only a Station Admin can create staff accounts." };
-  }
-
-  // Parse permissions array from multiple checkbox inputs or JSON
-  const rawPermissions = formData.getAll("permissions").map(String);
-  const permissionsJson = formData.get("permissionsJson");
-  let permissions: string[] | undefined = undefined;
-
-  if (typeof permissionsJson === "string" && permissionsJson.trim().length > 0) {
-    try {
-      permissions = JSON.parse(permissionsJson);
-    } catch {
-      permissions = rawPermissions;
-    }
-  } else if (rawPermissions.length > 0) {
-    permissions = rawPermissions;
-  }
 
   const parsed = CreateUserSchema.safeParse({
     name: formData.get("name"),
@@ -58,7 +43,6 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
     employeeId: formData.get("employeeId") ? String(formData.get("employeeId")).trim() : undefined,
     password: formData.get("password"),
     role: formData.get("role"),
-    permissions,
   });
 
   if (!parsed.success) {
@@ -72,12 +56,7 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
   const email = parsed.data.email?.trim() ? parsed.data.email.trim().toLowerCase() : null;
   const phone = parsed.data.phone?.trim() || null;
   const employeeId = parsed.data.employeeId?.trim() || null;
-  const role = parsed.data.role as Role;
-
-  // Station Admin (OWNER) automatically has 100% full access, permissions are null
-  const customPermissionsString = role === "OWNER" || !parsed.data.permissions
-    ? null
-    : JSON.stringify(parsed.data.permissions);
+  const role = parsed.data.role;
 
   try {
     const existing = await prisma.user.findUnique({
@@ -98,7 +77,7 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
           employeeId,
           passwordHash,
           role,
-          permissions: customPermissionsString,
+          permissions: null,
           active: true,
         },
       });
@@ -113,9 +92,7 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
           metadata: JSON.stringify({
             name: user.name,
             username: user.username,
-            role: user.role,
             employeeId: user.employeeId,
-            customPermissions: customPermissionsString ? parsed.data.permissions : "DEFAULT",
           }),
         },
       });
@@ -125,7 +102,7 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
 
     revalidatePath("/employees");
     revalidatePath("/access");
-    return { message: `${created.name} created as ${ROLE_LABEL[created.role as Role]}.` };
+    return { message: `${created.name} created as ${ROLE_LABEL.OWNER}.` };
   } catch (err) {
     if (err instanceof UserError) return { error: err.message };
     console.error("createUserAction failed", err);
@@ -134,89 +111,10 @@ export async function createUserAction(_prev: UserFormState, formData: FormData)
 }
 
 /**
- * Updates an existing staff member's custom permissions.
- */
-export async function updateUserPermissionsAction(
-  _prev: UserFormState,
-  formData: FormData
-): Promise<UserFormState> {
-  const actor = await requireUser();
-  if (!can(actor.role as Role, "manageUsers")) {
-    return { error: "Only a Station Admin can customize staff permissions." };
-  }
-
-  const userId = String(formData.get("userId") ?? "");
-  const permissionsJson = String(formData.get("permissionsJson") ?? "");
-  const resetToDefault = String(formData.get("resetToDefault") ?? "") === "true";
-
-  if (!userId) return { error: "Employee ID is required." };
-
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const target = await tx.user.findFirst({
-        where: { id: userId, stationId: actor.stationId },
-      });
-      if (!target) throw new UserError("Employee not found at this station.");
-
-      if (target.role === "OWNER") {
-        throw new UserError("Station Admin automatically has 100% full access — permissions cannot be restricted.");
-      }
-
-      let newPermissions: string | null = null;
-      if (!resetToDefault && permissionsJson) {
-        const parsed = JSON.parse(permissionsJson);
-        if (Array.isArray(parsed)) {
-          newPermissions = JSON.stringify(parsed);
-        }
-      }
-
-      await tx.user.update({
-        where: { id: target.id },
-        data: { permissions: newPermissions },
-      });
-
-      // Drop active sessions so updated capabilities reflect immediately
-      await tx.session.updateMany({
-        where: { userId: target.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          stationId: actor.stationId,
-          actorId: actor.id,
-          action: "USER_PERMISSIONS_UPDATED",
-          entityType: "User",
-          entityId: target.id,
-          metadata: JSON.stringify({
-            name: target.name,
-            role: target.role,
-            permissions: newPermissions ? JSON.parse(newPermissions) : "DEFAULT",
-          }),
-        },
-      });
-
-      return target.name;
-    });
-
-    revalidatePath("/employees");
-    revalidatePath("/access");
-    return { message: `Permissions updated for ${result}.` };
-  } catch (err) {
-    if (err instanceof UserError) return { error: err.message };
-    console.error("updateUserPermissionsAction failed", err);
-    return { error: "Could not update permissions. Please try again." };
-  }
-}
-
-/**
  * Deactivating or reactivating an employee account.
  */
 export async function setUserActiveAction(_prev: UserFormState, formData: FormData): Promise<UserFormState> {
   const actor = await requireUser();
-  if (!can(actor.role as Role, "manageUsers")) {
-    return { error: "Only a Station Admin can activate or deactivate employees." };
-  }
 
   const targetId = String(formData.get("userId") ?? "");
   const active = String(formData.get("active") ?? "") === "true";
@@ -281,77 +179,5 @@ export async function setUserActiveAction(_prev: UserFormState, formData: FormDa
     if (err instanceof UserError) return { error: err.message };
     console.error("setUserActiveAction failed", err);
     return { error: "Could not update the employee. Please try again." };
-  }
-}
-
-const ChangeRoleSchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(["OWNER", "MANAGER", "CASHIER", "ACCOUNTANT", "ATTENDANT", "OTHER"]),
-});
-
-export async function changeUserRoleAction(_prev: UserFormState, formData: FormData): Promise<UserFormState> {
-  const actor = await requireUser();
-  if (!can(actor.role as Role, "manageUsers")) {
-    return { error: "Only a Station Admin can change roles." };
-  }
-
-  const parsed = ChangeRoleSchema.safeParse({
-    userId: formData.get("userId"),
-    role: formData.get("role"),
-  });
-  if (!parsed.success) return { error: "Choose a valid role." };
-
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const target = await tx.user.findFirst({ where: { id: parsed.data.userId, stationId: actor.stationId } });
-      if (!target) throw new UserError("That employee isn't at this station.");
-
-      const newRole = parsed.data.role as Role;
-      if (target.role === newRole) throw new UserError(`${target.name} is already ${ROLE_LABEL[newRole]}.`);
-
-      if (target.id === actor.id && newRole !== "OWNER") {
-        throw new UserError("You can't demote your own account — ask another owner to do it.");
-      }
-
-      if (target.role === "OWNER" && newRole !== "OWNER") {
-        const otherOwners = await tx.user.count({
-          where: { stationId: actor.stationId, role: "OWNER", active: true, id: { not: target.id } },
-        });
-        if (otherOwners === 0) {
-          throw new UserError("That's the last active owner — promote someone else first.");
-        }
-      }
-
-      // Reset permissions override when role changes so new role default applies
-      await tx.user.update({
-        where: { id: target.id },
-        data: { role: newRole, permissions: null },
-      });
-
-      await tx.session.updateMany({
-        where: { userId: target.id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          stationId: actor.stationId,
-          actorId: actor.id,
-          action: "USER_ROLE_CHANGED",
-          entityType: "User",
-          entityId: target.id,
-          metadata: JSON.stringify({ name: target.name, oldRole: target.role, newRole }),
-        },
-      });
-
-      return { name: target.name, newRole };
-    });
-
-    revalidatePath("/employees");
-    return { message: `${result.name} is now ${ROLE_LABEL[result.newRole]} and has been signed out.` };
-  } catch (err) {
-    if (err instanceof UserError) return { error: err.message };
-    console.error("changeUserRoleAction failed", err);
-    return { error: "Could not change the role. Please try again." };
   }
 }

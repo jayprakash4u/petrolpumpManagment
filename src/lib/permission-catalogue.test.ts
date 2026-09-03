@@ -12,7 +12,7 @@ import {
   diffFromTemplate,
 } from "@/lib/permission-catalogue";
 
-const ROLES: Role[] = ["OWNER", "MANAGER", "CASHIER", "ACCOUNTANT", "ATTENDANT", "OTHER"];
+const ROLES: Role[] = ["OWNER"];
 
 describe("the catalogue covers the real permission set", () => {
   it("describes every permission the server enforces", () => {
@@ -48,16 +48,11 @@ describe("the catalogue covers the real permission set", () => {
   });
 });
 
-describe("role templates match what the server actually allows", () => {
-  it("agrees with can() for non-owner roles and permission sets", () => {
+describe("can() grants full access regardless of role or template", () => {
+  it("is true for every role and every permission — the catalogue's per-role template is reference data only, not enforced", () => {
     for (const role of ROLES) {
-      const template = defaultPermissionsFor(role);
       for (const key of ALL_PERMISSIONS) {
-        if (role === "OWNER") {
-          expect(can(role, key)).toBe(true);
-        } else {
-          expect(template.has(key), `${role} / ${key}`).toBe(can(role, key));
-        }
+        expect(can(role, key), `${role} / ${key}`).toBe(true);
       }
     }
   });
@@ -69,52 +64,29 @@ describe("role templates match what the server actually allows", () => {
     expect(hasUserPermission({ role: "OWNER" }, "viewReports")).toBe(true);
   });
 
-  it("gives a pump operator (attendant) forecourt, meter readings, sales and own shift", () => {
-    const attendant = defaultPermissionsFor("ATTENDANT");
-    expect(attendant.has("viewPumps")).toBe(true);
-    expect(attendant.has("recordMeterReadings")).toBe(true);
-    expect(attendant.has("recordSale")).toBe(true);
-    expect(attendant.has("manageOwnShift")).toBe(true);
-    expect(attendant.has("manageUsers")).toBe(false);
-  });
-
-  it("gives an accountant sales view, expenses, reports and customer ledgers", () => {
-    const accountant = defaultPermissionsFor("ACCOUNTANT");
-    expect(accountant.has("viewSales")).toBe(true);
-    expect(accountant.has("viewExpenses")).toBe(true);
-    expect(accountant.has("manageExpenses")).toBe(true);
-    expect(accountant.has("viewReports")).toBe(true);
-    expect(accountant.has("exportReports")).toBe(true);
-    expect(accountant.has("managePumps")).toBe(false);
-  });
-
-  it("gives a cashier sales and payments but not expense editing or rates", () => {
-    const cashier = defaultPermissionsFor("CASHIER");
-    expect(cashier.has("recordSale")).toBe(true);
-    expect(cashier.has("processPayment")).toBe(true);
-    expect(cashier.has("recordCustomerPayment")).toBe(true);
-    expect(cashier.has("editFuelRate")).toBe(false);
-    expect(cashier.has("manageExpenses")).toBe(false);
+  it("gives the one role (Pump Admin) every permission there is — forecourt, sales, expenses, reports, and user management alike", () => {
+    const granted = defaultPermissionsFor("OWNER");
+    expect([...granted].sort()).toEqual([...ALL_PERMISSIONS].sort());
   });
 });
 
-describe("custom per-user permissions override role template", () => {
-  it("allows a cashier to have reports when customized by Station Admin", () => {
+describe("hasUserPermission grants full access regardless of stored per-user overrides", () => {
+  it("ignores a cashier's stored custom permission list and grants everything anyway", () => {
     const userWithCustomPerms = {
-      role: "CASHIER",
+      role: "OWNER",
       permissions: JSON.stringify(["viewSales", "recordSale", "processPayment", "viewReports"]),
     };
     expect(hasUserPermission(userWithCustomPerms, "viewReports")).toBe(true);
-    expect(hasUserPermission(userWithCustomPerms, "editFuelRate")).toBe(false);
+    expect(hasUserPermission(userWithCustomPerms, "editFuelRate")).toBe(true);
   });
 
-  it("allows a pump operator to be restricted or granted extra access", () => {
+  it("ignores a restricted pump operator's stored custom permission list and grants everything anyway", () => {
     const restrictedOperator = {
       role: "ATTENDANT",
       permissions: JSON.stringify(["viewPumps", "recordMeterReadings"]),
     };
     expect(hasUserPermission(restrictedOperator, "viewPumps")).toBe(true);
-    expect(hasUserPermission(restrictedOperator, "recordSale")).toBe(false);
+    expect(hasUserPermission(restrictedOperator, "recordSale")).toBe(true);
   });
 });
 
@@ -133,25 +105,21 @@ describe("escalation is contained", () => {
 
 describe("diffFromTemplate", () => {
   it("reports no change for an untouched template", () => {
-    const d = diffFromTemplate("CASHIER", defaultPermissionsFor("CASHIER"));
+    const d = diffFromTemplate("OWNER", defaultPermissionsFor("OWNER"));
     expect(d.isCustomised).toBe(false);
     expect(d.added).toEqual([]);
     expect(d.removed).toEqual([]);
   });
 
-  it("reports an added permission", () => {
-    const selected = defaultPermissionsFor("CASHIER");
-    selected.add("viewReports");
-    const d = diffFromTemplate("CASHIER", selected);
-    expect(d.added).toEqual(["viewReports"]);
-    expect(d.removed).toEqual([]);
-    expect(d.isCustomised).toBe(true);
-  });
+  // There's no "added" case to test anymore: the one role's default
+  // template is already every permission there is (defaultPermissionsFor
+  // maps every PERMISSIONS entry to ["OWNER"]), so nothing can be added to
+  // it that isn't already there.
 
   it("reports a removed permission", () => {
-    const selected = defaultPermissionsFor("CASHIER");
+    const selected = defaultPermissionsFor("OWNER");
     selected.delete("recordCustomerPayment");
-    const d = diffFromTemplate("CASHIER", selected);
+    const d = diffFromTemplate("OWNER", selected);
     expect(d.removed).toEqual(["recordCustomerPayment"]);
     expect(d.added).toEqual([]);
     expect(d.isCustomised).toBe(true);

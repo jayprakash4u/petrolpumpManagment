@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { requireTenantDb } from "@/lib/tenant-db";
-import { can, type Role } from "@/lib/permissions";
 import {
   mergeInvoiceConfig,
   InvoiceSettingsSchema,
@@ -163,15 +162,6 @@ export async function updateStationInvoiceSettingsAction(
   formData: FormData
 ): Promise<InvoiceSettingsActionState> {
   const { prisma: tenantDb, stationId, user } = await requireTenantDb();
-
-  if (
-    !can(user.role as Role, "changeStationSettings" as any) &&
-    user.role !== "ADMIN" &&
-    (user.role as string) !== "OWNER" &&
-    user.role !== "MANAGER"
-  ) {
-    return { error: "Only an Admin or Manager can modify station invoice settings." };
-  }
 
   const raw = {
     // 1. Station Profile
@@ -342,14 +332,6 @@ export async function updateStationInvoiceSettingsAction(
 export async function uploadStationLogoAction(formData: FormData): Promise<LogoUploadResult> {
   const { prisma: tenantDb, stationId, slug, user } = await requireTenantDb();
 
-  if (
-    user.role !== "ADMIN" &&
-    user.role !== "MANAGER" &&
-    (user.role as string) !== "OWNER"
-  ) {
-    return { error: "Only an Admin or Manager can upload a station logo." };
-  }
-
   const file = formData.get("logoFile") as File | null;
   if (!file || !(file instanceof File)) {
     return { error: "No image file provided." };
@@ -424,14 +406,6 @@ export async function uploadStationLogoAction(formData: FormData): Promise<LogoU
  */
 export async function deleteStationLogoAction(): Promise<{ success: boolean; error?: string }> {
   const { prisma: tenantDb, stationId, user } = await requireTenantDb();
-
-  if (
-    user.role !== "ADMIN" &&
-    user.role !== "MANAGER" &&
-    (user.role as string) !== "OWNER"
-  ) {
-    return { success: false, error: "Permission denied." };
-  }
 
   try {
     await ensureStationInvoiceSchema(tenantDb);

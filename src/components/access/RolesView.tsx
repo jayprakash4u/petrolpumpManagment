@@ -1,18 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ShieldCheck,
-  Crown,
-  Briefcase,
-  Wallet,
-  Calculator,
-  Gauge,
-  Users,
-  Check,
-  ArrowRight,
-  UserPlus,
-} from "lucide-react";
+import { ShieldCheck, Crown, Check, ArrowRight, UserPlus } from "lucide-react";
 import type { Role } from "@/lib/permissions";
 import { STATION_ROLES, getRoleActivePermissions } from "@/lib/access";
 import { Card } from "@/components/ui/Card";
@@ -21,11 +10,6 @@ import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 
 const ROLE_ICONS: Record<Role, React.ComponentType<{ size?: number; className?: string }>> = {
   OWNER: Crown,
-  MANAGER: Briefcase,
-  CASHIER: Wallet,
-  ACCOUNTANT: Calculator,
-  ATTENDANT: Gauge,
-  OTHER: Users,
 };
 
 export function RolesView() {
@@ -38,9 +22,9 @@ export function RolesView() {
             <ShieldCheck size={20} />
           </div>
           <div>
-            <h3 className="font-display text-[16px] font-bold text-text">Station Roles & Starting Templates</h3>
+            <h3 className="font-display text-[16px] font-bold text-text">Pump Admin</h3>
             <p className="text-[12.5px] text-text-muted">
-              Role defines the general job title and default permission preset. Station Admin can customize granular access on a per-staff basis.
+              There is one access level at this station. Every staff login has full access to everything below.
             </p>
           </div>
         </div>

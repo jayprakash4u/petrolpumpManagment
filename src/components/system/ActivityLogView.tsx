@@ -19,9 +19,16 @@ import {
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { ROLE_LABEL } from "@/lib/permissions";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/dashboard/StatCard";
+
+/** "DAEMON" isn't a staff role — it's the automated sync job. Every real
+ * (human) role now displays as "Pump Admin"; the sync job stays "System". */
+function roleDisplay(role: string): string {
+  return role === "DAEMON" ? "System" : ROLE_LABEL[role];
+}
 
 interface ActivityEvent {
   id: string;
@@ -48,7 +55,7 @@ export function ActivityLogView() {
       action: "SALE_RECORDED",
       description: "Bill #SL-1025 issued for 25.0 L Petrol (MS-91) · Rs 4,250",
       actor: "Ram Shrestha",
-      role: "ATTENDANT",
+      role: "OWNER",
       dateBS: "2083-05-08",
       time: "11:02 AM",
       severity: "SUCCESS",
@@ -67,7 +74,7 @@ export function ActivityLogView() {
       action: "SALE_RECORDED",
       description: "Bill #SL-1024 issued for 40.0 L Diesel (HSD) · Rs 6,000 billed to Sajha Yatayat",
       actor: "Sita Gurung",
-      role: "ATTENDANT",
+      role: "OWNER",
       dateBS: "2083-05-08",
       time: "10:48 AM",
       severity: "SUCCESS",
@@ -118,7 +125,7 @@ export function ActivityLogView() {
       action: "METER_READING_CLOSED",
       description: "Morning shift meter closing entered for Island A (Bay 1 & 2)",
       actor: "Sita Gurung",
-      role: "MANAGER",
+      role: "OWNER",
       dateBS: "2083-05-08",
       time: "09:30 AM",
       severity: "INFO",
@@ -135,7 +142,7 @@ export function ActivityLogView() {
       action: "TANK_DIP_RECORDED",
       description: "Physical morning dip recorded for Tank 01 (MS Petrol): 1,280 mm · 12,840 L",
       actor: "Ram Shrestha",
-      role: "MANAGER",
+      role: "OWNER",
       dateBS: "2083-05-08",
       time: "06:15 AM",
       severity: "INFO",
@@ -197,7 +204,7 @@ export function ActivityLogView() {
       `"${e.action}"`,
       `"${e.description}"`,
       `"${e.actor}"`,
-      `"${e.role}"`,
+      `"${roleDisplay(e.role)}"`,
       `"${e.dateBS}"`,
       `"${e.time}"`,
       `"${e.severity}"`,
@@ -360,7 +367,7 @@ export function ActivityLogView() {
 
                   <div className="flex items-center gap-3 text-[11.5px] text-text-muted">
                     <span className="flex items-center gap-1">
-                      <User size={12} /> {evt.actor} ({evt.role})
+                      <User size={12} /> {evt.actor} ({roleDisplay(evt.role)})
                     </span>
                     <span>·</span>
                     <span className="font-mono text-[10.5px]">Action: {evt.action}</span>
@@ -423,7 +430,7 @@ export function ActivityLogView() {
                   </div>
                   <div>
                     <span className="text-text-muted block text-[11px]">System Role:</span>
-                    <Badge tone="accent">{viewingEvent.role}</Badge>
+                    <Badge tone="accent">{roleDisplay(viewingEvent.role)}</Badge>
                   </div>
                 </div>
               </div>

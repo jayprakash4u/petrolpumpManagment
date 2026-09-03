@@ -411,9 +411,6 @@ const EditSaleSchema = z.object({
 
 export async function editSaleAction(_prev: EditSaleState, formData: FormData): Promise<EditSaleState> {
   const { prisma: tenantDb, stationId, user } = await requireTenantDb();
-  if (!can(user.role as Role, "voidSale") && user.role !== "OWNER" && user.role !== "MANAGER") {
-    return { error: "Only an owner or manager can edit a recorded bill." };
-  }
 
   const parsed = EditSaleSchema.safeParse({
     saleId: formData.get("saleId"),

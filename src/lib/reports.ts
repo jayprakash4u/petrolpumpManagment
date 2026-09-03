@@ -7,14 +7,16 @@ import { fmtBSDayMonth, fmtBSLong, toBS, fromBS } from "@/lib/bs-date";
  * table. All of that is decided here, where it can be tested directly.
  */
 
-export type PresetKey = "today" | "yesterday" | "7d" | "30d" | "month" | "custom";
+export type PresetKey = "today" | "yesterday" | "7d" | "30d" | "week" | "month" | "year" | "custom";
 
 export const PRESET_LABEL: Record<PresetKey, string> = {
   today: "Today",
   yesterday: "Yesterday",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
+  week: "This week",
   month: "This month",
+  year: "This year",
   custom: "Custom",
 };
 
@@ -88,6 +90,13 @@ export function presetRange(preset: Exclude<PresetKey, "custom">, now: Date = ne
       from.setDate(from.getDate() - 29);
       return { from, to: endOfDay(today), preset };
     }
+    case "week": {
+      // Sunday through today — the week as a Nepali pump actually keeps it
+      // (Saturday is the weekly off day), not an ISO Monday start.
+      const from = new Date(today);
+      from.setDate(from.getDate() - today.getDay());
+      return { from, to: endOfDay(today), preset };
+    }
     case "month": {
       // The *Bikram Sambat* month, not the Gregorian one. "This month" to a
       // Nepali pump owner means Bhadra, and a Gregorian month boundary would
@@ -95,6 +104,14 @@ export function presetRange(preset: Exclude<PresetKey, "custom">, now: Date = ne
       const bs = toBS(today);
       const bsStart = bs ? fromBS({ year: bs.year, month: bs.month, day: 1 }) : null;
       const from = bsStart ?? new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from, to: endOfDay(today), preset };
+    }
+    case "year": {
+      // Same reasoning as "month": the BS year (starts Baishakh 1), not the
+      // Gregorian one.
+      const bs = toBS(today);
+      const bsStart = bs ? fromBS({ year: bs.year, month: 1, day: 1 }) : null;
+      const from = bsStart ?? new Date(today.getFullYear(), 0, 1);
       return { from, to: endOfDay(today), preset };
     }
   }

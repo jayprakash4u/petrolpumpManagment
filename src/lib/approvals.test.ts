@@ -134,7 +134,7 @@ describe("Approvals Module Unit Tests", () => {
       expect(result.canApprove).toBe(true);
     });
 
-    it("blocks Attendant or Cashier from approving requests", () => {
+    it("allows any role to approve a pending request that isn't their own — no role-based restriction", () => {
       const request: ApprovalRequest = {
         id: "req-test-3",
         requestCode: "REQ-TEST-3",
@@ -151,7 +151,7 @@ describe("Approvals Module Unit Tests", () => {
       };
 
       const result = canUserApprove("ATTENDANT", mockUserAttendant.id, request);
-      expect(result.canApprove).toBe(false);
+      expect(result.canApprove).toBe(true);
     });
 
     it("blocks approval if request is already approved or rejected", () => {

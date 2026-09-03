@@ -13,15 +13,10 @@ describe("Access Level Management Unit Tests", () => {
     resetPermissionsToDefault();
   });
 
-  it("lists station roles with responsibilities and summaries", () => {
-    expect(STATION_ROLES.length).toBe(6);
-    const roleKeys = STATION_ROLES.map((r) => r.role);
-    expect(roleKeys).toContain("OWNER");
-    expect(roleKeys).toContain("MANAGER");
-    expect(roleKeys).toContain("CASHIER");
-    expect(roleKeys).toContain("ACCOUNTANT");
-    expect(roleKeys).toContain("ATTENDANT");
-    expect(roleKeys).toContain("OTHER");
+  it("lists one station role — Pump Admin — with full access", () => {
+    expect(STATION_ROLES.length).toBe(1);
+    expect(STATION_ROLES[0].role).toBe("OWNER");
+    expect(STATION_ROLES[0].name).toBe("Pump Admin");
   });
 
   it("lists all defined station capabilities across categories", () => {
@@ -34,41 +29,31 @@ describe("Access Level Management Unit Tests", () => {
     expect(categories.has("Operations & Admin")).toBe(true);
   });
 
-  it("returns active permissions for Owner, Manager, Cashier, Accountant, and Attendant", () => {
+  it("gives the one role every capability there is", () => {
     const ownerPerms = getRoleActivePermissions("OWNER");
-    expect(ownerPerms.length).toBe(20); // Owner has all permissions
-
-    const attendantPerms = getRoleActivePermissions("ATTENDANT");
-    expect(attendantPerms.map((p) => p.key)).toContain("recordSale");
-    expect(attendantPerms.map((p) => p.key)).toContain("viewPumps");
-    expect(attendantPerms.map((p) => p.key)).toContain("recordMeterReadings");
-    expect(attendantPerms.map((p) => p.key)).not.toContain("manageUsers");
-
-    const accountantPerms = getRoleActivePermissions("ACCOUNTANT");
-    expect(accountantPerms.map((p) => p.key)).toContain("viewExpenses");
-    expect(accountantPerms.map((p) => p.key)).toContain("manageExpenses");
-    expect(accountantPerms.map((p) => p.key)).toContain("viewReports");
+    expect(ownerPerms.length).toBe(20);
+    expect(ownerPerms.map((p) => p.key)).toContain("recordSale");
+    expect(ownerPerms.map((p) => p.key)).toContain("viewPumps");
+    expect(ownerPerms.map((p) => p.key)).toContain("recordMeterReadings");
+    expect(ownerPerms.map((p) => p.key)).toContain("manageUsers");
+    expect(ownerPerms.map((p) => p.key)).toContain("viewExpenses");
+    expect(ownerPerms.map((p) => p.key)).toContain("manageExpenses");
+    expect(ownerPerms.map((p) => p.key)).toContain("viewReports");
   });
 
-  it("updates permission roles and preserves safety guard for Owner manageUsers", () => {
-    const blockedRes = updatePermissionRoles("manageUsers", ["MANAGER"]);
+  it("keeps the Owner-manageUsers safety guard even though Owner is the only role", () => {
+    const blockedRes = updatePermissionRoles("manageUsers", []);
     expect(blockedRes.success).toBe(false);
     expect(blockedRes.message).toContain("Safety Guard");
-
-    const successRes = updatePermissionRoles("editFuelRate", ["OWNER", "MANAGER", "CASHIER"]);
-    expect(successRes.success).toBe(true);
-
-    const updatedMatrix = getPermissionsMatrix();
-    expect(updatedMatrix.editFuelRate).toContain("CASHIER");
   });
 
-  it("resets modified permissions back to system defaults", () => {
-    updatePermissionRoles("recordSale", ["OWNER"]);
+  it("resets modified permissions back to system defaults (every capability granted to OWNER)", () => {
+    updatePermissionRoles("recordSale", []);
     let matrix = getPermissionsMatrix();
-    expect(matrix.recordSale).toEqual(["OWNER"]);
+    expect(matrix.recordSale).toEqual([]);
 
     resetPermissionsToDefault();
     matrix = getPermissionsMatrix();
-    expect(matrix.recordSale).toContain("ATTENDANT");
+    expect(matrix.recordSale).toEqual(["OWNER"]);
   });
 });

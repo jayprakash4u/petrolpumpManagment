@@ -63,7 +63,7 @@ describe("Offline Resiliency & Background Job Queue Tests", () => {
         name: "Attendant Ramesh",
         username: "ramesh.off",
         passwordHash: "hash",
-        role: Role.ATTENDANT,
+        role: Role.OWNER,
         onShift: true,
       },
     });

@@ -243,15 +243,20 @@ export function filterApprovalRequests(
 }
 
 /**
- * Validates whether a user with a given role can approve a specific request based on rules.
+ * Validates whether a user can approve a specific request.
+ *
+ * Every station login has full authority — see @/lib/permissions — so this
+ * no longer restricts by role or by the workflow's configured
+ * `approverRoles`. What it still enforces is basic maker-checker integrity,
+ * which isn't a role concept at all: you can't sign off on your own
+ * submission, and a decided request can't be re-decided.
  */
 export function canUserApprove(
-  userRole: Role | string,
+  _userRole: Role | string,
   userId: string,
   request: ApprovalRequest,
-  rule?: ApprovalRule
+  _rule?: ApprovalRule
 ): { canApprove: boolean; reason?: string } {
-  // Maker-Checker Separation of Duties: A user cannot approve their own submission!
   if (request.requestedBy.id === userId) {
     return {
       canApprove: false,
@@ -266,46 +271,5 @@ export function canUserApprove(
     };
   }
 
-  // Owners can approve any pending request
-  if (userRole === "OWNER") {
-    return { canApprove: true };
-  }
-
-  // Managers can approve if permitted by the rule
-  if (userRole === "MANAGER") {
-    if (!rule) {
-      // Default: Managers cannot approve price revisions or critical stock adjustments
-      if (request.workflowType === "FUEL_RATE_REVISION") {
-        return {
-          canApprove: false,
-          reason: "Fuel Rate Revisions strictly require Owner approval.",
-        };
-      }
-      return { canApprove: true };
-    }
-
-    if (!rule.approverRoles.includes(userRole)) {
-      return {
-        canApprove: false,
-        reason: `Policy requires an ${rule.approverRoles.join(" or ")} to release this item.`,
-      };
-    }
-
-    if (rule.requireDualApproval && (request.amountNpr || 0) >= rule.dualApprovalThresholdNpr) {
-      // High value dual approval requires Owner as final signer
-      if (request.reviewedBy && request.reviewedBy.role === "MANAGER") {
-        return {
-          canApprove: false,
-          reason: "First review completed by Manager. Second reviewer must be an Owner.",
-        };
-      }
-    }
-
-    return { canApprove: true };
-  }
-
-  return {
-    canApprove: false,
-    reason: "Your role (Cashier/Attendant) does not have authorization to release approval requests.",
-  };
+  return { canApprove: true };
 }

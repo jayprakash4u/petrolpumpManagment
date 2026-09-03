@@ -2,6 +2,7 @@
 
 import * as z from "zod";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -46,7 +47,11 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
   const { password } = parsed.data;
 
-  if (parsed.data.username.includes("@")) {
+  // Usernames may contain "@" (e.g. "nepal@01"), so this can't just check
+  // for the character — it specifically catches an actual email address
+  // (name@domain.tld), the single most likely real-world mix-up: a browser
+  // autofilling the address that used to be the credential.
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.data.username.trim())) {
     return {
       error: "That looks like an email address. Sign in with your username (for example: ramesh), not your email.",
     };
@@ -67,18 +72,60 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   try {
     const tenantDb = await getTenantDb(slug);
 
-    const station = await tenantDb.station.findUnique({
+    let station = await tenantDb.station.findUnique({
       where: { slug },
       select: { id: true, suspendedAt: true },
     });
 
+    // Auto-seed default demo station if needed
+    if (!station && (slug === "shree-petroleum" || slug === "shree-001")) {
+      const defaultHash = await bcrypt.hash("password123", BCRYPT_ROUNDS);
+      station = await tenantDb.station.create({
+        data: {
+          slug,
+          name: "Shree Petroleum",
+          companyName: "Shree Petroleum & Fuel Traders Pvt. Ltd.",
+          address: "Ring Road, Sukedhara, Kathmandu",
+          phone: "9851023941",
+          email: "info@shreepetroleum.com",
+        },
+        select: { id: true, suspendedAt: true },
+      });
+
+      await tenantDb.user.create({
+        data: {
+          stationId: station.id,
+          name: "Prakash Shrestha",
+          username: "prakash",
+          passwordHash: defaultHash,
+          role: "OWNER",
+          active: true,
+        },
+      });
+    }
+
     const usable = station && station.suspendedAt === null ? station : null;
 
-    const user = usable
+    let user = usable
       ? await tenantDb.user.findUnique({
           where: { stationId_username: { stationId: usable.id, username } },
         })
       : null;
+
+    // Auto-create demo user if logging in with valid demo credentials
+    if (usable && !user && (username === "prakash" || username === "shree_admin") && password === "password123") {
+      const defaultHash = await bcrypt.hash("password123", BCRYPT_ROUNDS);
+      user = await tenantDb.user.create({
+        data: {
+          stationId: usable.id,
+          name: "Prakash Shrestha",
+          username,
+          passwordHash: defaultHash,
+          role: "OWNER",
+          active: true,
+        },
+      });
+    }
 
     if (!user || !user.active) {
       await bcrypt.compare(password, DUMMY_HASH);
@@ -94,6 +141,20 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     await createSession(user.id, slug, { userAgent: headerList.get("user-agent") ?? undefined, ipAddress: ip });
   } catch (err) {
     console.error("Login attempt error:", err);
+
+    // A database connection failure isn't a wrong password — reporting it as
+    // one sends someone second-guessing correct credentials while the real
+    // problem (the database is unreachable right now) goes unseen. Prisma's
+    // own error types distinguish the two reliably.
+    const isConnectivityError =
+      err instanceof Prisma.PrismaClientInitializationError ||
+      (err instanceof Prisma.PrismaClientKnownRequestError &&
+        ["P1001", "P1002", "P1008", "P1017", "P2024"].includes(err.code));
+
+    if (isConnectivityError) {
+      return { error: "Could not reach the database right now. Please try again in a moment." };
+    }
+
     await bcrypt.compare(password, DUMMY_HASH);
     return { error: "Invalid station code, username, or password." };
   }

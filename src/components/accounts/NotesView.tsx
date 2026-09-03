@@ -23,7 +23,7 @@ import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Field";
 
 export function NotesView({
-  userName = "Station Manager",
+  userName = "Staff",
 }: {
   userName?: string;
 }) {

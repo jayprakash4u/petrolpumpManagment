@@ -20,7 +20,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { StatCard } from "@/components/dashboard/StatCard";
 
 export function CashConfirmationView({
-  userName = "Station Manager",
+  userName = "Staff",
 }: {
   userName?: string;
 }) {

@@ -68,7 +68,7 @@ const VOUCHER_METADATA: Record<
 
 export function VouchersView({
   voucherType,
-  userName = "Station Operator",
+  userName = "Staff",
 }: {
   voucherType: VoucherType;
   userName?: string;

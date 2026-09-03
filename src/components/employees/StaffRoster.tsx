@@ -1,28 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { clsx } from "clsx";
-import { SlidersHorizontal, Phone, Hash } from "lucide-react";
-import type { Role } from "@/lib/permissions";
+import { Phone, Hash } from "lucide-react";
 import type { EmployeesPageData } from "@/lib/queries/employees";
 import { ROLE_LABEL } from "@/lib/permissions";
 import { initials, fmtDuration } from "@/lib/staff";
 import { fmtRs, fmtL } from "@/lib/money";
 import { fmtBSDateTime } from "@/lib/bs-date";
-import { Badge, type Tone } from "@/components/ui/Badge";
-import { GhostButton } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { ShiftButton } from "./ShiftButton";
-import { ActiveToggle, RoleSelect } from "./UserAdmin";
-import { EditStaffModal } from "./EditStaffModal";
-
-const ROLE_TONE: Record<string, Tone> = {
-  OWNER: "accent",
-  MANAGER: "accent",
-  CASHIER: "success",
-  ACCOUNTANT: "success",
-  ATTENDANT: "muted",
-  OTHER: "muted",
-};
+import { ActiveToggle } from "./UserAdmin";
 
 export function StaffRoster({
   staff,
@@ -37,16 +24,12 @@ export function StaffRoster({
   canManageOthers: boolean;
   canManageUsers: boolean;
 }) {
-  const [editingStaff, setEditingStaff] = useState<EmployeesPageData["staff"][number] | null>(null);
-
   return (
     <>
       <div className="flex flex-col gap-2.5">
         {staff.map((s) => {
           const isSelf = s.id === currentUserId;
           const showShiftButton = isSelf || canManageOthers;
-          const roleKey = (s.role || "ATTENDANT") as Role;
-          const isCustomized = Boolean(s.permissions && s.role !== "OWNER");
 
           return (
             <div
@@ -90,13 +73,7 @@ export function StaffRoster({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={ROLE_TONE[roleKey] || "muted"}>
-                    {(ROLE_LABEL[roleKey] || s.role).toUpperCase()}
-                  </Badge>
-
-                  {isCustomized && (
-                    <Badge tone="accent">CUSTOM PERMS</Badge>
-                  )}
+                  <Badge tone="accent">{ROLE_LABEL[s.role].toUpperCase()}</Badge>
 
                   {!s.active ? (
                     <Badge tone="error">INACTIVE</Badge>
@@ -125,34 +102,14 @@ export function StaffRoster({
               )}
 
               {canManageUsers && (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-                  <div>
-                    {s.role !== "OWNER" && (
-                      <GhostButton
-                        type="button"
-                        onClick={() => setEditingStaff(s)}
-                        className="px-2.5 py-1 text-[11.5px]"
-                      >
-                        <SlidersHorizontal size={12} />
-                        Customize Access
-                      </GhostButton>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <RoleSelect userId={s.id} role={s.role as Role} />
-                    <ActiveToggle userId={s.id} active={s.active} name={s.name} />
-                  </div>
+                <div className="mt-3 flex justify-end border-t border-border pt-3">
+                  <ActiveToggle userId={s.id} active={s.active} name={s.name} />
                 </div>
               )}
             </div>
           );
         })}
       </div>
-
-      {editingStaff && (
-        <EditStaffModal user={editingStaff} onClose={() => setEditingStaff(null)} />
-      )}
     </>
   );
 }

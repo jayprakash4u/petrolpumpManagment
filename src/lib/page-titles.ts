@@ -31,6 +31,10 @@ export const ROUTE_TITLES: Record<string, string> = {
   "/activity": "Activity Log",
   "/archive": "Log Archive",
   "/help": "Help & Support",
+  "/pumps": "Live Pumps",
+  "/ird": "IRD Sync",
+  "/noc": "NOC",
+  "/vcts": "VCTS",
 };
 
 /** Longest-prefix match, so `/sales/bills` still resolves to the `/sales` title. */

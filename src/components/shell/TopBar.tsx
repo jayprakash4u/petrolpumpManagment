@@ -20,12 +20,10 @@ function subscribeToClock(onChange: () => void) {
 
 export function TopBar({
   title,
-  userName,
   userRole,
   onMenu,
 }: {
   title: string;
-  userName: string;
   userRole: Role | string;
   onMenu: () => void;
 }) {
@@ -50,10 +48,9 @@ export function TopBar({
           LIVE
         </div>
 
-        <div className="hidden text-right sm:block">
-          <div className="text-[13px] font-semibold text-text">{userName}</div>
+        <div className="hidden sm:block">
           <div className="font-data text-[10px] tracking-wider text-accent uppercase font-bold">
-            STATION OPERATOR
+            {ROLE_LABEL[userRole]}
           </div>
         </div>
 

@@ -82,6 +82,32 @@ export function generateStationCode(name: string, withSuffix = false): string {
   return `${truncatedBase}-${rand}`;
 }
 
+/**
+ * Generates a clean, professional Station Code: e.g. "SHREE-001", "MANOJ-002", "ABC-003"
+ */
+export function generateStationCodeFromName(name: string, seq = 1): string {
+  if (!name || !name.trim()) return `STN-${String(seq).padStart(3, "0")}`;
+  
+  // Extract key word (e.g. "Shree" from "Shree Petrol Pump", "Manoj" from "Manoj Petroleum")
+  const words = name.trim().split(/\s+/).filter(w => {
+    const lower = w.toLowerCase();
+    return !["petrol", "pump", "fuel", "station", "center", "centre", "oil", "energy", "traders", "pvt", "ltd"].includes(lower);
+  });
+
+  const keyword = (words[0] || name.trim().split(/\s+/)[0] || "STN").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const shortKey = keyword.slice(0, 8);
+  const numStr = String(seq).padStart(3, "0");
+  return `${shortKey}-${numStr}`;
+}
+
+/**
+ * Formats a system immutable Station ID: e.g. "STN-000001", "STN-000015"
+ */
+export function formatStationId(seq: number | string): string {
+  const num = typeof seq === "number" ? seq : parseInt(seq.replace(/\D/g, "") || "1", 10);
+  return `STN-${String(num).padStart(6, "0")}`;
+}
+
 export const SLUG_PROBLEM_MESSAGE: Record<SlugProblem, string> = {
   EMPTY: "Enter your station code.",
   TOO_SHORT: `A station code needs at least ${MIN_SLUG_LENGTH} characters.`,

@@ -13,7 +13,15 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { Role, User } from "@prisma/client";
+import type { User } from "@prisma/client";
+
+/**
+ * There's one real `Role` value now ("OWNER" — every login has full
+ * access, see @/lib/permissions). These labels aren't roles in that
+ * sense; they're just names for distinct test actors, each created with
+ * the real `role: "OWNER"`.
+ */
+type ActorLabel = "OWNER" | "MANAGER" | "CASHIER" | "ATTENDANT";
 
 const testDir = mkdtempSync(path.join(tmpdir(), "fsm-emp-"));
 const testDbPath = path.join(testDir, "test.db");
@@ -33,11 +41,11 @@ vi.mock("next/cache", () => ({
 
 const { prisma } = await import("@/lib/db");
 const { startShiftAction, endShiftAction } = await import("@/lib/actions/shifts");
-const { createUserAction, setUserActiveAction, changeUserRoleAction } = await import("@/lib/actions/users");
+const { createUserAction, setUserActiveAction } = await import("@/lib/actions/users");
 const bcrypt = (await import("bcryptjs")).default;
 
 let stationId: string;
-const users: Record<Role, User> = {} as Record<Role, User>;
+const users: Record<ActorLabel, User> = {} as Record<ActorLabel, User>;
 
 beforeAll(() => {
   execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], {
@@ -68,9 +76,9 @@ beforeEach(async () => {
   const station = await prisma.station.create({ data: { slug: "test-station", name: "Test Station", address: "Test Rd" } });
   stationId = station.id;
 
-  for (const role of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as Role[]) {
-    users[role] = await prisma.user.create({
-      data: { stationId, name: role + " Person", username: role.toLowerCase() + ".user", passwordHash: "x", role },
+  for (const label of ["OWNER", "MANAGER", "CASHIER", "ATTENDANT"] as ActorLabel[]) {
+    users[label] = await prisma.user.create({
+      data: { stationId, name: label + " Person", username: label.toLowerCase() + ".user", passwordHash: "x", role: "OWNER" },
     });
   }
   currentUser = users.OWNER;
@@ -118,12 +126,12 @@ describe("startShiftAction", () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: users.ATTENDANT.id } })).onShift).toBe(true);
   });
 
-  it("refuses to let a cashier start someone else's shift", async () => {
+  it("isn't restricted to an owner or manager — a cashier can start someone else's shift too", async () => {
     currentUser = users.CASHIER;
     const result = await startShiftAction({}, form({ userId: users.ATTENDANT.id }));
 
-    expect(result.error).toMatch(/owner or manager/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.ATTENDANT.id } })).onShift).toBe(false);
+    expect(result.error).toBeUndefined();
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.ATTENDANT.id } })).onShift).toBe(true);
   });
 
   it("will not put a deactivated employee on shift", async () => {
@@ -138,7 +146,7 @@ describe("startShiftAction", () => {
   it("will not touch an employee at another station", async () => {
     const other = await prisma.station.create({ data: { slug: "other-station", name: "Other", address: "Elsewhere" } });
     const outsider = await prisma.user.create({
-      data: { stationId: other.id, name: "Outsider", username: "outsider", passwordHash: "x", role: "ATTENDANT" },
+      data: { stationId: other.id, name: "Outsider", username: "outsider", passwordHash: "x", role: "OWNER" },
     });
 
     currentUser = users.OWNER;
@@ -230,19 +238,19 @@ describe("endShiftAction", () => {
 
 describe("createUserAction", () => {
   const newEmployee = (over: Record<string, string> = {}) =>
-    form({ name: "New Hire", username: "New.Hire", password: "supersecret", role: "ATTENDANT", ...over });
+    form({ name: "New Hire", username: "New.Hire", password: "supersecret", role: "OWNER", ...over });
 
-  it("creates an employee with a hashed password", async () => {
+  it("creates an employee with a hashed password, as the one role there is", async () => {
     const result = await createUserAction({}, newEmployee());
 
     expect(result.error).toBeUndefined();
-    expect(result.message).toMatch(/New Hire added as Attendant/);
+    expect(result.message).toMatch(/New Hire created as Pump Admin/);
 
     const created = await prisma.user.findUniqueOrThrow({
       where: { stationId_username: { stationId, username: "new.hire" } },
     });
     expect(created.stationId).toBe(stationId);
-    expect(created.role).toBe("ATTENDANT");
+    expect(created.role).toBe("OWNER");
     expect(created.active).toBe(true);
 
     expect(created.passwordHash).not.toBe("supersecret");
@@ -282,13 +290,13 @@ describe("createUserAction", () => {
     expect(JSON.stringify(log.metadata)).not.toMatch(/\$2[aby]\$/); // no bcrypt hash
   });
 
-  it("is refused for every role except owner", async () => {
-    for (const role of ["MANAGER", "CASHIER", "ATTENDANT"] as const) {
-      currentUser = users[role];
-      const result = await createUserAction({}, newEmployee());
-      expect(result.error, role).toMatch(/Only an owner/);
+  it("isn't restricted to an owner — any logged-in account can add staff", async () => {
+    for (const label of ["MANAGER", "CASHIER", "ATTENDANT"] as const) {
+      currentUser = users[label];
+      const result = await createUserAction({}, newEmployee({ username: `new.hire.${label.toLowerCase()}` }));
+      expect(result.error, label).toBeUndefined();
     }
-    expect(await prisma.user.count({ where: { username: "new.hire" } })).toBe(0);
+    expect(await prisma.user.count({ where: { name: "New Hire" } })).toBe(3);
   });
 });
 
@@ -355,81 +363,16 @@ describe("setUserActiveAction — deactivation", () => {
     expect(result.error).toMatch(/already active/);
   });
 
-  it("is refused for a manager", async () => {
+  it("isn't restricted to an owner — a manager can deactivate someone too", async () => {
     currentUser = users.MANAGER;
     const result = await setUserActiveAction({}, form({ userId: users.CASHIER.id, active: "false" }));
-    expect(result.error).toMatch(/Only an owner/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.CASHIER.id } })).active).toBe(true);
-  });
-});
-
-describe("changeUserRoleAction", () => {
-  it("changes the role and signs the person out", async () => {
-    const session = await prisma.session.create({
-      data: { userId: users.ATTENDANT.id, expiresAt: new Date(Date.now() + 3600e3) },
-    });
-
-    const result = await changeUserRoleAction({}, form({ userId: users.ATTENDANT.id, role: "CASHIER" }));
-
     expect(result.error).toBeUndefined();
-    expect(result.message).toMatch(/is now Cashier and has been signed out/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.ATTENDANT.id } })).role).toBe("CASHIER");
-    expect((await prisma.session.findUniqueOrThrow({ where: { id: session.id } })).revokedAt).not.toBeNull();
-  });
-
-  it("refuses to let an owner demote themselves", async () => {
-    const result = await changeUserRoleAction({}, form({ userId: users.OWNER.id, role: "MANAGER" }));
-
-    expect(result.error).toMatch(/can't demote your own account/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.OWNER.id } })).role).toBe("OWNER");
-  });
-
-  it("refuses to demote the last owner even from another owner account", async () => {
-    const second = await prisma.user.create({
-      data: { stationId, name: "Second Owner", username: "owner.two", passwordHash: "x", role: "OWNER" },
-    });
-    // Deactivate the original so `second` is the only *active* owner.
-    currentUser = second;
-    await setUserActiveAction({}, form({ userId: users.OWNER.id, active: "false" }));
-
-    // Promote someone, then try to demote the sole active owner from that account.
-    await changeUserRoleAction({}, form({ userId: users.MANAGER.id, role: "OWNER" }));
-    currentUser = await prisma.user.findUniqueOrThrow({ where: { id: users.MANAGER.id } });
-
-    const ok = await changeUserRoleAction({}, form({ userId: second.id, role: "MANAGER" }));
-    expect(ok.error).toBeUndefined(); // two active owners existed, so this is allowed
-
-    const blocked = await changeUserRoleAction({}, form({ userId: currentUser.id, role: "MANAGER" }));
-    expect(blocked.error).toMatch(/can't demote your own account/);
-    expect(await prisma.user.count({ where: { stationId, role: "OWNER", active: true } })).toBe(1);
-  });
-
-  it("rejects a no-op role change", async () => {
-    const result = await changeUserRoleAction({}, form({ userId: users.CASHIER.id, role: "CASHIER" }));
-    expect(result.error).toMatch(/already Cashier/);
-  });
-
-  it("rejects an unknown role", async () => {
-    const result = await changeUserRoleAction({}, form({ userId: users.CASHIER.id, role: "SUPERUSER" }));
-    expect(result.error).toMatch(/valid role/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.CASHIER.id } })).role).toBe("CASHIER");
-  });
-
-  it("is refused for a manager", async () => {
-    currentUser = users.MANAGER;
-    const result = await changeUserRoleAction({}, form({ userId: users.ATTENDANT.id, role: "OWNER" }));
-    expect(result.error).toMatch(/Only an owner/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.ATTENDANT.id } })).role).toBe("ATTENDANT");
-  });
-
-  it("will not change the role of someone at another station", async () => {
-    const other = await prisma.station.create({ data: { slug: "other-station", name: "Other", address: "Elsewhere" } });
-    const outsider = await prisma.user.create({
-      data: { stationId: other.id, name: "Outsider", username: "outsider", passwordHash: "x", role: "ATTENDANT" },
-    });
-
-    const result = await changeUserRoleAction({}, form({ userId: outsider.id, role: "OWNER" }));
-    expect(result.error).toMatch(/isn't at this station/);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: outsider.id } })).role).toBe("ATTENDANT");
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: users.CASHIER.id } })).active).toBe(false);
   });
 });
+
+// changeUserRoleAction and updateUserPermissionsAction were removed along
+// with the role tiers they existed to manage — there's nothing left to
+// promote, demote, or grant differently between one role and itself. The
+// remaining lockout guard that mattered (never leave zero active accounts)
+// is still covered above, in "setUserActiveAction — deactivation".

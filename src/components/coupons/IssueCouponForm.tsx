@@ -191,7 +191,7 @@ export function IssueCouponForm({ onBookIssued }: { onBookIssued?: (book: Coupon
             <div className="flex items-start justify-between border-b border-border/80 pb-3">
               <div>
                 <div className="font-display text-[15px] font-extrabold text-text">SHREE PETROLEUM</div>
-                <div className="font-data text-[10px] text-text-muted">STATION CODE: shree-petroleum</div>
+                <div className="font-data text-[10px] text-text-muted">STATION CODE: shreepump</div>
               </div>
               <div className="text-right">
                 <div className="font-data text-[13px] font-bold text-accent">{bookNumber}-01</div>

@@ -75,7 +75,8 @@ export function AttendanceView({
   const [punchStatus, setPunchStatus] = useState<AttendanceStatus>("PRESENT");
   const [punchNotes, setPunchNotes] = useState("");
 
-  const canManage = currentUser.role === "OWNER" || currentUser.role === "MANAGER";
+  // Every station login has full access — see @/lib/permissions.
+  const canManage = true;
 
   const refreshData = () => {
     setAttendance(getAttendanceRecords());
@@ -119,7 +120,7 @@ export function AttendanceView({
       dateBS: "2083-05-08",
       employeeId: `usr-${Date.now()}`,
       employeeName: punchEmployeeName.trim(),
-      role: "ATTENDANT",
+      role: "OWNER",
       shiftType: punchShift,
       checkIn: punchInTime,
       checkOut: punchOutTime,

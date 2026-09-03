@@ -342,4 +342,31 @@ BEGIN
 END;
 `,
   },
+  {
+    id: "007_tank_readings",
+    description: "TankReading table — physical dip readings reconciled against book stock.",
+    sql: `
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TankReading')
+BEGIN
+    CREATE TABLE [dbo].[TankReading] (
+        [id] NVARCHAR(1000) NOT NULL PRIMARY KEY,
+        [stationId] NVARCHAR(1000) NOT NULL,
+        [tankId] NVARCHAR(1000) NOT NULL,
+        [fuel] NVARCHAR(50) NOT NULL,
+        [dipMm] DECIMAL(10,2) NULL,
+        [physicalL] DECIMAL(12,3) NOT NULL,
+        [bookStockL] DECIMAL(12,3) NOT NULL,
+        [varianceL] DECIMAL(12,3) NOT NULL,
+        [notes] NVARCHAR(500) NULL,
+        [recordedById] NVARCHAR(1000) NOT NULL,
+        [createdAt] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT [FK_TankReading_Station] FOREIGN KEY ([stationId]) REFERENCES [dbo].[Station]([id]),
+        CONSTRAINT [FK_TankReading_Tank] FOREIGN KEY ([tankId]) REFERENCES [dbo].[Tank]([id]),
+        CONSTRAINT [FK_TankReading_User] FOREIGN KEY ([recordedById]) REFERENCES [dbo].[User]([id])
+    );
+    CREATE INDEX [IX_TankReading_station_createdAt] ON [dbo].[TankReading] ([stationId], [createdAt]);
+    CREATE INDEX [IX_TankReading_tankId] ON [dbo].[TankReading] ([tankId]);
+END;
+`,
+  },
 ];

@@ -6,7 +6,7 @@ import { AccessSubnav } from "@/components/access/AccessSubnav";
 import { PermissionsMatrixView } from "@/components/access/PermissionsMatrixView";
 
 export default async function AccessPermissionsPage() {
-  const user = await requireUser();
+  await requireUser();
 
   return (
     <div>
@@ -15,10 +15,10 @@ export default async function AccessPermissionsPage() {
       <Card>
         <SectionTitle
           icon={SlidersHorizontal}
-          title="Role Capabilities & Permissions Matrix"
-          subtitle="Simple, visual control of which operations and sidebar menus are accessible to each role"
+          title="Job Title Reference"
+          subtitle="What each job title is traditionally responsible for — access itself is not restricted by role"
         />
-        <PermissionsMatrixView currentUserRole={user.role} />
+        <PermissionsMatrixView />
       </Card>
     </div>
   );

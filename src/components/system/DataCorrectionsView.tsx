@@ -14,6 +14,7 @@ import {
   FileText,
   AlertTriangle,
 } from "lucide-react";
+import { ROLE_LABEL } from "@/lib/permissions";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -53,7 +54,7 @@ export function DataCorrectionsView() {
       action: "SALE_VOIDED",
       entity: "Bill #1021",
       actorName: "Sita Gurung",
-      actorRole: "MANAGER",
+      actorRole: "OWNER",
       dateBS: "2083-05-08",
       time: "09:15 AM",
       reason: "Calibration meter check refund — 20.0 L restocked to tank",
@@ -77,7 +78,7 @@ export function DataCorrectionsView() {
       action: "DIP_CORRECTION",
       entity: "Tank 02 (Diesel HSD)",
       actorName: "Ram Shrestha",
-      actorRole: "MANAGER",
+      actorRole: "OWNER",
       dateBS: "2083-05-06",
       time: "06:30 PM",
       reason: "Physical dip tape recalibration variance adjustment",
@@ -119,7 +120,7 @@ export function DataCorrectionsView() {
       `"${c.action}"`,
       `"${c.entity}"`,
       `"${c.actorName}"`,
-      `"${c.actorRole}"`,
+      `"${ROLE_LABEL[c.actorRole]}"`,
       `"${c.dateBS}"`,
       `"${c.time}"`,
       `"${c.reason}"`,
@@ -274,7 +275,7 @@ export function DataCorrectionsView() {
                     <td className="px-4 py-3 font-body text-text">
                       <div>{entry.actorName}</div>
                       <span className="font-mono text-[10.5px] text-text-muted">
-                        [{entry.actorRole}]
+                        [{ROLE_LABEL[entry.actorRole]}]
                       </span>
                     </td>
 

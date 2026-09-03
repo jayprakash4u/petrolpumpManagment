@@ -51,7 +51,7 @@ export function normalizeUsername(raw: string): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ".")
-    .replace(/[^a-z0-9._-]/g, "")
+    .replace(/[^a-z0-9._@-]/g, "")
     .replace(/([._-])\1+/g, "$1")
     .replace(/^[._-]+|[._-]+$/g, "");
 }

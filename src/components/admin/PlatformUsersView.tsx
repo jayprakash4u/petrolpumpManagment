@@ -12,7 +12,7 @@ export interface SuperAdminStaff {
   name: string;
   username: string;
   email: string;
-  role: "PLATFORM_SUPER_ADMIN" | "BILLING_OPERATOR" | "SUPPORT_ENGINEER" | "SECURITY_AUDITOR";
+  role: "PLATFORM_SUPER_ADMIN" | "BILLING_ACCOUNTANT" | "SUPPORT_ENGINEER" | "SECURITY_AUDITOR";
   lastLoginBS: string;
   status: "ACTIVE" | "INACTIVE";
 }
@@ -21,33 +21,42 @@ export function PlatformUsersView() {
   const [staffList, setStaffList] = useState<SuperAdminStaff[]>([
     {
       id: "sa-1",
-      name: "Jay Prakash Yadav",
-      username: "operator",
-      email: "operator@petrocloud.test",
+      name: "John Admin",
+      username: "john.admin",
+      email: "john@petrocloud.test",
       role: "PLATFORM_SUPER_ADMIN",
       lastLoginBS: "2083-05-08 12:40",
       status: "ACTIVE",
     },
     {
       id: "sa-2",
-      name: "Aayush Sharma",
-      username: "aayush.support",
-      email: "aayush@petrocloud.test",
+      name: "Sita Support",
+      username: "sita.support",
+      email: "sita@petrocloud.test",
       role: "SUPPORT_ENGINEER",
       lastLoginBS: "2083-05-08 10:15",
       status: "ACTIVE",
     },
     {
       id: "sa-3",
-      name: "Suman Shrestha",
-      username: "suman.billing",
-      email: "billing@petrocloud.test",
-      role: "BILLING_OPERATOR",
+      name: "Ram Accountant",
+      username: "ram.accountant",
+      email: "ram@petrocloud.test",
+      role: "BILLING_ACCOUNTANT",
       lastLoginBS: "2083-05-07 16:30",
       status: "ACTIVE",
     },
     {
       id: "sa-4",
+      name: "Jay Prakash Yadav",
+      username: "operator",
+      email: "operator@petrocloud.test",
+      role: "PLATFORM_SUPER_ADMIN",
+      lastLoginBS: "2083-05-08 14:20",
+      status: "ACTIVE",
+    },
+    {
+      id: "sa-5",
       name: "Nabin Thapa",
       username: "nabin.audit",
       email: "audit@petrocloud.test",
@@ -238,10 +247,10 @@ export function PlatformUsersView() {
                 onChange={(e) => setNewRole(e.target.value as any)}
                 className="w-full rounded-lg border border-border bg-bg p-2 text-[12.5px] text-text"
               >
-                <option value="SUPPORT_ENGINEER">Support Engineer</option>
-                <option value="BILLING_OPERATOR">Billing & Accounts Operator</option>
+                <option value="SUPPORT_ENGINEER">Support Specialist (e.g. Sita)</option>
+                <option value="BILLING_ACCOUNTANT">Accountant & Billing Manager (e.g. Ram)</option>
                 <option value="SECURITY_AUDITOR">Security & Compliance Auditor</option>
-                <option value="PLATFORM_SUPER_ADMIN">Platform Super Admin</option>
+                <option value="PLATFORM_SUPER_ADMIN">Platform Super Admin (e.g. John)</option>
               </select>
             </div>
 

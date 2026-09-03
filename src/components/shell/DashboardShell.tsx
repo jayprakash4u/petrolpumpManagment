@@ -8,13 +8,11 @@ import { titleForPath } from "@/lib/page-titles";
 import type { Role } from "@/lib/permissions";
 
 export function DashboardShell({
-  userName,
   userRole,
   stationName,
   logoUrl,
   children,
 }: {
-  userName: string;
   userRole: Role | string;
   stationName: string;
   logoUrl?: string | null;
@@ -46,7 +44,7 @@ export function DashboardShell({
       )}
 
       <main className="mx-auto w-full max-w-[1240px] flex-1 px-5 pt-[22px] pb-[60px]">
-        <TopBar title={title} userName={userName} userRole={userRole} onMenu={() => setMobileOpen(true)} />
+        <TopBar title={title} userRole={userRole} onMenu={() => setMobileOpen(true)} />
         {children}
       </main>
     </div>

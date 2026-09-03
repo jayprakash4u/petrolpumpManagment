@@ -101,6 +101,7 @@ model Station {
   customers       Customer[]
   sales           Sale[]
   purchases       Purchase[]
+  tankReadings    TankReading[]
   auditLogs       AuditLog[]
   invoiceSettings StationInvoiceSettings?
 }
@@ -158,6 +159,7 @@ model User {
   purchases        Purchase[]        @relation("PurchaseRecordedBy")
   payments         CustomerPayment[] @relation("PaymentRecordedBy")
   rateChanges      FuelRateHistory[] @relation("RateChangedBy")
+  tankReadings     TankReading[]     @relation("TankReadingRecordedBy")
   auditLogs        AuditLog[]
   shifts           Shift[]
   endedShiftsAdmin Shift[]           @relation("ShiftEndedBy")
@@ -195,8 +197,33 @@ model Tank {
   sales       Sale[]
   purchases   Purchase[]
   rateHistory FuelRateHistory[]
+  readings    TankReading[]
 
   @@unique([stationId, fuel])
+}
+
+/// A physical stock check (dip reading) against the ledger's book stock —
+/// deliveries and sales already move `Tank.levelL` in real time; this is
+/// the reconciliation check that catches drift between what the ledger
+/// says and what's actually in the ground.
+model TankReading {
+  id           String   @id @default(cuid())
+  stationId    String
+  station      Station  @relation(fields: [stationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tankId       String
+  tank         Tank     @relation(fields: [tankId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fuel         String // PETROL, DIESEL, CNG — copied at reading time so history reads correctly if a tank is ever repurposed
+  dipMm        Decimal? @db.Decimal(10, 2) // optional — the dipstick measurement, for the paper record; physicalL is what's actually compared
+  physicalL    Decimal  @db.Decimal(12, 3) // measured stock, converted from the dip via the tank's calibration chart (off-app)
+  bookStockL   Decimal  @db.Decimal(12, 3) // Tank.levelL at the moment of this reading
+  varianceL    Decimal  @db.Decimal(12, 3) // physicalL - bookStockL; negative = shortage
+  notes        String?  @db.NVarChar(500)
+  recordedById String
+  recordedBy   User     @relation("TankReadingRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt    DateTime @default(now())
+
+  @@index([stationId, createdAt])
+  @@index([tankId])
 }
 
 model FuelRateHistory {

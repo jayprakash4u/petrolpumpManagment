@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/platform-dal";
 import { getStationAdminDetails } from "@/lib/queries/platform";
-import { StationManageView } from "@/components/admin/StationManageView";
+import { StationDetailFullPageView } from "@/components/admin/StationDetailFullPageView";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -17,11 +17,10 @@ export default async function AdminStationDetailsPage({ params }: PageProps) {
   }
 
   return (
-    <StationManageView
+    <StationDetailFullPageView
       slug={slug}
       tenant={details.tenant}
       station={details.station}
-      invoiceConfig={details.invoiceConfig}
       stats={details.stats}
     />
   );

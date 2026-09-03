@@ -73,16 +73,21 @@ export async function readAdminSession() {
   const psid = await verifyAdminToken(token);
   if (!psid) return null;
 
-  const master = getMasterDb();
-  const session = await master.platformSession.findUnique({
-    where: { id: psid },
-    include: { admin: true },
-  });
+  try {
+    const master = getMasterDb();
+    const session = await master.platformSession.findUnique({
+      where: { id: psid },
+      include: { admin: true },
+    });
 
-  if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
-  if (!session.admin.active) return null;
+    if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
+    if (!session.admin.active) return null;
 
-  return { sessionId: session.id, admin: session.admin };
+    return { sessionId: session.id, admin: session.admin };
+  } catch (err) {
+    console.error("readAdminSession database error:", err);
+    return null;
+  }
 }
 
 export async function destroyAdminSession() {
@@ -92,11 +97,16 @@ export async function destroyAdminSession() {
   if (!token) return;
   const psid = await verifyAdminToken(token);
   if (!psid) return;
-  const master = getMasterDb();
-  await master.platformSession.updateMany({
-    where: { id: psid, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+
+  try {
+    const master = getMasterDb();
+    await master.platformSession.updateMany({
+      where: { id: psid, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  } catch (err) {
+    console.error("destroyAdminSession database error:", err);
+  }
 }
 
 /** Optimistic, cookie-only check for the proxy. Never sufficient for authorization. */
