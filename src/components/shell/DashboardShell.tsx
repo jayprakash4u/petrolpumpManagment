@@ -43,7 +43,7 @@ export function DashboardShell({
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[1240px] flex-1 px-5 pt-[22px] pb-[60px]">
+      <main className="min-w-0 flex-1 px-4 md:px-6 pt-[22px] pb-[60px] max-w-full">
         <TopBar title={title} userRole={userRole} onMenu={() => setMobileOpen(true)} />
         {children}
       </main>

@@ -11,7 +11,7 @@ export function Field({ label, children, htmlFor }: { label: string; children: R
 }
 
 const fieldBaseClasses =
-  "w-full rounded-lg border border-border bg-bg px-[11px] py-[9px] font-data text-sm text-text placeholder:text-text-muted/60";
+  "w-full rounded-lg border border-border bg-bg px-[11px] py-[9px] font-data text-sm text-text placeholder:text-text-muted/60 transition-colors focus:border-accent/80 focus:outline-none";
 
 // ComponentPropsWithRef (not InputHTMLAttributes) so callers can pass `ref`
 // directly — React 19 treats ref as an ordinary prop, no forwardRef needed.

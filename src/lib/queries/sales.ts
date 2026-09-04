@@ -3,12 +3,15 @@ import { Prisma } from "@prisma/client";
 import { requireTenantDb } from "@/lib/tenant-db";
 import { creditHeadroom } from "@/lib/sale-math";
 
+import { fmtBS, fiscalYearOf } from "@/lib/bs-date";
+
 const D = Prisma.Decimal;
 
 export interface SerializedSale {
   id: string;
   receiptNo: number;
   billNumber: string;
+  creditNoteNo?: string;
   vehicleNo: string | null;
   fuel: string;
   liters: number;
@@ -20,6 +23,7 @@ export interface SerializedSale {
   formattedDateBS: string;
   customerName: string | null;
   customerId: string | null;
+  customerPan?: string | null;
   soldByName: string;
   tankId: string;
   voided: boolean;
@@ -29,10 +33,13 @@ export interface SerializedSale {
 
 const mapSale = (s: any): SerializedSale => {
   const d = new Date(s.createdAt);
+  const fy = fiscalYearOf(d) || "2083/84";
+  const fyShort = fy.replace("/", "-");
   return {
     id: s.id,
     receiptNo: s.receiptNo,
     billNumber: `SL-${s.receiptNo}`,
+    creditNoteNo: `cn-tb-${s.receiptNo}-${fyShort}`,
     vehicleNo: s.vehicleNo ?? null,
     fuel: s.fuel,
     liters: Number(s.liters),
@@ -45,10 +52,11 @@ const mapSale = (s: any): SerializedSale => {
       minute: "2-digit",
       hour12: true,
     }),
-    formattedDateBS: d.toISOString().slice(0, 10),
+    formattedDateBS: fmtBS(d),
     customerName: s.customer?.name ?? s.buyerName ?? null,
     customerId: s.customerId ?? null,
-    soldByName: s.soldBy?.name ?? "Attendant",
+    customerPan: s.customer?.panNo ?? s.buyerPan ?? null,
+    soldByName: s.soldBy?.name ?? "SUPER ADMIN",
     tankId: s.tankId,
     voided: s.voided,
     voidReason: s.voidReason ?? null,
@@ -144,13 +152,13 @@ export async function getSalesPageData(_stationId?: string) {
  */
 export async function getSalesReturnsPageData(_stationId?: string) {
   const { prisma: tenantDb, stationId } = await requireTenantDb();
-  const [voidedRaw, activeRaw] = await Promise.all([
+  const [voidedRaw, activeRaw, station] = await Promise.all([
     tenantDb.sale.findMany({
       where: { stationId, voided: true },
       orderBy: { voidedAt: "desc" },
-      take: 100,
+      take: 200,
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, panNo: true } },
         soldBy: { select: { name: true } },
       },
     }),
@@ -159,9 +167,13 @@ export async function getSalesReturnsPageData(_stationId?: string) {
       orderBy: { createdAt: "desc" },
       take: 200,
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, panNo: true } },
         soldBy: { select: { name: true } },
       },
+    }),
+    tenantDb.station.findFirst({
+      where: { id: stationId },
+      select: { name: true, panNo: true, vatNo: true },
     }),
   ]);
 
@@ -174,6 +186,8 @@ export async function getSalesReturnsPageData(_stationId?: string) {
   return {
     returns,
     activeSales,
+    stationName: station?.name || "Fuel Station",
+    stationPan: station?.panNo || station?.vatNo || "300066034",
     totalCount: returns.length,
     totalReversedAmount,
     totalRestockedLiters,

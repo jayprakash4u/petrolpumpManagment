@@ -269,7 +269,6 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
                   id="modalVehicleNo"
                   value={editVehicleNo}
                   onChange={(e) => setEditVehicleNo(e.target.value)}
-                  placeholder="e.g. BA 2 PA 1234 / GA 1 KHA 9021"
                 />
               </Field>
 
@@ -330,7 +329,6 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
                     id="modalPayRef"
                     value={editPaymentRef}
                     onChange={(e) => setEditPaymentRef(e.target.value)}
-                    placeholder="e.g. Fonepay Trace / Slip No"
                   />
                 </Field>
               )}
@@ -343,7 +341,6 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
                 <Input
                   value={editReason}
                   onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="e.g. Corrected vehicle plate / Reassigned customer account"
                   required
                   minLength={3}
                   autoFocus
@@ -394,7 +391,6 @@ Status: ${sale.voided ? `VOIDED RETURN (${sale.voidReason})` : "PAID / CLEARED"}
                   <Input
                     value={voidReason}
                     onChange={(e) => setVoidReason(e.target.value)}
-                    placeholder="Reason for return (e.g. Dispense aborted, Wrong fuel entry)"
                     autoFocus
                   />
                   {voidError && <p className="text-[11.5px] text-error">{voidError}</p>}

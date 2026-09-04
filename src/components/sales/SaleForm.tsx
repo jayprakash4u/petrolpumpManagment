@@ -15,6 +15,8 @@ import {
   Plus,
   X,
   Zap,
+  Printer,
+  CheckCircle2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { recordSaleAction, type SaleFormState } from "@/lib/actions/sales";
@@ -58,6 +60,17 @@ export function SaleForm({
   todayBS?: string;
 }) {
   const [state, action, pending] = useActionState(recordSaleAction, initialState);
+  const [intent, setIntent] = useState<"save" | "print">("save");
+  const printedForRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (intent === "print" && state.receipt && printedForRef.current !== state.receipt.receiptNo) {
+      printedForRef.current = state.receipt.receiptNo;
+      // Let the invoice actually paint before handing off to the print dialog.
+      const t = setTimeout(() => window.print(), 150);
+      return () => clearTimeout(t);
+    }
+  }, [intent, state.receipt]);
 
   if (!canSell) {
     return (
@@ -78,14 +91,34 @@ export function SaleForm({
         error={state.error}
         invoiceNumber={invoiceNumber}
         todayBS={todayBS}
+        onIntent={setIntent}
       />
 
-      {state.receipt && (
+      {state.receipt && intent === "print" && (
         <ReceiptCard
           receipt={state.receipt}
           business={invoiceConfig}
           settings={invoiceConfig}
         />
+      )}
+
+      {state.receipt && intent === "save" && (
+        <div className="animate-fade-in mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-success/30 bg-success/5 p-4">
+          <div className="flex items-center gap-2 text-success">
+            <CheckCircle2 size={18} />
+            <span className="font-display text-sm font-bold">
+              Sale Saved: {state.receipt.billNumber}
+            </span>
+          </div>
+          <GhostButton
+            type="button"
+            onClick={() => setIntent("print")}
+            className="text-xs px-3.5 py-1.5 font-bold"
+          >
+            <Printer size={13} />
+            Print Invoice
+          </GhostButton>
+        </div>
       )}
     </div>
   );
@@ -99,6 +132,7 @@ function SaleFields({
   error,
   invoiceNumber = "SL-0001",
   todayBS,
+  onIntent,
 }: {
   tanks: TankOption[];
   customers: CustomerOption[];
@@ -107,6 +141,7 @@ function SaleFields({
   error?: string;
   invoiceNumber?: string;
   todayBS?: string;
+  onIntent: (intent: "save" | "print") => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
@@ -156,19 +191,23 @@ function SaleFields({
   const overCredit = payment === "CREDIT" && calc !== null && netTotal > Number(customer?.headroom ?? 0);
   const isFormValid = !!calc && calc.liters > 0 && !overStock && !overCredit;
 
-  // Keyboard shortcut Ctrl+S
+  // Global Keyboard POS Shortcut: Ctrl+S = Save & Print
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (isFormValid && !pending && formRef.current) {
+          onIntent("print");
           formRef.current.requestSubmit();
         }
+      }
+      if (e.key === "Escape") {
+        handleReset();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFormValid, pending]);
+  }, [isFormValid, pending, onIntent]);
 
   // Handle Reset / Cancel
   const handleReset = () => {
@@ -414,7 +453,7 @@ function SaleFields({
                           }}
                           className={clsx(
                             "font-mono text-xs font-black pr-6 text-right",
-                            mode === "LITERS" ? "border-accent ring-1 ring-accent/30" : ""
+                            mode === "LITERS" ? "border-accent/80 bg-accent/[0.03]" : ""
                           )}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] font-bold text-text-muted">
@@ -441,7 +480,7 @@ function SaleFields({
                           }}
                           className={clsx(
                             "font-mono text-xs font-black pr-8 text-right",
-                            mode === "AMOUNT" ? "border-accent ring-1 ring-accent/30" : ""
+                            mode === "AMOUNT" ? "border-accent/80 bg-accent/[0.03]" : ""
                           )}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] font-bold text-text-muted">
@@ -455,7 +494,7 @@ function SaleFields({
             </div>
 
             {/* Tank Inventory Indicator Status Line */}
-            <div className="flex items-center justify-between text-xs pt-0.5">
+            <div className="flex items-center text-xs pt-0.5">
               <div className="flex items-center gap-1.5">
                 <span
                   className={clsx(
@@ -466,10 +505,6 @@ function SaleFields({
                   ● Tank Inventory: {stock.toLocaleString("en-IN", { minimumFractionDigits: 2 })} L available
                 </span>
               </div>
-
-              <span className="text-[10.5px] text-text-muted font-mono">
-                Qty × Rate = Amount
-              </span>
             </div>
           </div>
 
@@ -488,7 +523,7 @@ function SaleFields({
                 className="text-xs font-medium"
               />
               <div className="text-[10.5px] text-text-muted flex items-center gap-2 pt-1 font-mono">
-                <span>[Ctrl+S] Save Sale</span>
+                <span>[Ctrl+S] Save & Print</span>
                 <span>•</span>
                 <span>[Esc] Reset</span>
               </div>
@@ -583,18 +618,32 @@ function SaleFields({
               Cancel
             </GhostButton>
 
+            <GhostButton
+              type="submit"
+              disabled={pending || !isFormValid}
+              onClick={() => onIntent("save")}
+              className={clsx(
+                "px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2",
+                isFormValid ? "cursor-pointer" : "opacity-60 cursor-not-allowed"
+              )}
+            >
+              <Check size={15} className="stroke-[3]" />
+              {pending ? "Saving..." : "Save"}
+            </GhostButton>
+
             <PrimaryButton
               type="submit"
               disabled={pending || !isFormValid}
+              onClick={() => onIntent("print")}
               className={clsx(
-                "px-7 py-2 text-xs font-black tracking-wide rounded-xl shadow-md transition-all flex items-center gap-2",
+                "px-7 py-2.5 text-xs font-black tracking-wide rounded-xl shadow-md transition-all flex items-center gap-2",
                 isFormValid
                   ? "bg-accent text-[#1A1306] hover:brightness-110 shadow-accent/20 cursor-pointer"
                   : "opacity-60 cursor-not-allowed"
               )}
             >
-              <Check size={15} className="stroke-[3]" />
-              {pending ? "Saving..." : "✓ Save Sale"}
+              <Printer size={15} className="stroke-[3]" />
+              {pending ? "Saving..." : "Save & Print (Ctrl + S)"}
             </PrimaryButton>
           </div>
         </div>

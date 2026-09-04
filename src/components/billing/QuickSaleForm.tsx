@@ -11,12 +11,6 @@ import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { ReceiptCard } from "@/components/sales/ReceiptCard";
 import type { MergedStationInvoiceConfig } from "@/lib/invoice-settings";
 
-const FUEL_DOT: Record<string, string> = {
-  PETROL: "bg-amber-500",
-  DIESEL: "bg-blue-500",
-  CNG: "bg-emerald-500",
-  KEROSENE: "bg-purple-500",
-};
 
 function preview(mode: "LITERS" | "AMOUNT", raw: string, rate: number) {
   const n = Number(raw);
@@ -251,16 +245,13 @@ function QuickSaleFields({
                   className={clsx(
                     "flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative",
                     active
-                      ? "border-accent bg-accent/10 ring-2 ring-accent/40 shadow-xs"
+                      ? "border-accent/80 bg-accent/5 shadow-xs"
                       : "border-border bg-surface-hi hover:border-text-muted/50"
                   )}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className={clsx("h-2 w-2 rounded-full", FUEL_DOT[t.fuel] ?? "bg-accent")} />
-                      <span className={clsx("font-display text-xs font-bold", active ? "text-accent" : "text-text")}>
-                        {label}
-                      </span>
+                    <span className={clsx("font-display text-xs font-bold", active ? "text-accent" : "text-text")}>
+                      {label}
                     </span>
                     {active && <Check size={14} className="text-accent stroke-[3]" />}
                   </div>
@@ -308,7 +299,7 @@ function QuickSaleFields({
                 }}
                 className={clsx(
                   "font-mono text-sm font-black pr-7",
-                  mode === "LITERS" ? "border-accent ring-1 ring-accent/30" : ""
+                  mode === "LITERS" ? "border-accent/80 bg-accent/[0.03]" : ""
                 )}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[11px] font-bold text-text-muted">
@@ -337,7 +328,7 @@ function QuickSaleFields({
                 }}
                 className={clsx(
                   "font-mono text-sm font-black pr-10 text-right",
-                  mode === "AMOUNT" ? "border-accent ring-1 ring-accent/30" : ""
+                  mode === "AMOUNT" ? "border-accent/80 bg-accent/[0.03]" : ""
                 )}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[11px] font-bold text-text-muted">

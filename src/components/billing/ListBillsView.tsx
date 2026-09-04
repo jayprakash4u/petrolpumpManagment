@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  ListOrdered,
   Plus,
   Search,
   Printer,
@@ -29,11 +28,22 @@ import {
   Hash,
   CalendarRange,
   ArrowUpDown,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Receipt,
+  Eye,
+  ShieldCheck,
+  Building2,
+  Calendar,
+  Layers,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { GhostButton, PrimaryButton } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Badge";
-import { StatCard } from "@/components/dashboard/StatCard";
 import { fmtRs, fmtL } from "@/lib/money";
 import { FUEL_LABEL, type FuelId } from "@/lib/fuel";
 import { PrintReceiptModal } from "@/components/sales/PrintReceiptModal";
@@ -46,7 +56,7 @@ import { billQueryString, type BillFilters } from "@/lib/bill-filters";
 import { toDateInput, parseDateInput } from "@/lib/reports";
 import { fiscalYearOf } from "@/lib/bs-date";
 
-/** 13% is Nepal's standard VAT rate — the same split used in the IRD CSV export below. */
+/** 13% is Nepal's standard VAT rate — matching IRD compliance specifications */
 function vatSplit(amount: number): { taxable: number; vat: number } {
   const taxable = Math.round((amount / 1.13) * 100) / 100;
   return { taxable, vat: Math.round((amount - taxable) * 100) / 100 };
@@ -69,6 +79,7 @@ export function ListBillsView({
   const router = useRouter();
   const pathname = usePathname();
   const [isNavPending, startNav] = useTransition();
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const [bills, setBills] = useState<SerializedBillItem[]>(initialData.bills);
   const [billQuery, setBillQuery] = useState(filters.search || "");
@@ -78,10 +89,9 @@ export function ListBillsView({
   const [statusFilter, setStatusFilter] = useState<string>(filters.status || "all");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [showStats, setShowStats] = useState(true);
 
-  // The register is fetched per date window server-side (see getBillsPageData);
-  // these two only take effect once "Search" below re-requests the page with
-  // a new range — everything else on this screen filters instantly client-side.
+  // Server-side date range states
   const [fromDate, setFromDate] = useState(toDateInput(filters.range.from));
   const [toDate, setToDate] = useState(toDateInput(filters.range.to));
 
@@ -105,13 +115,31 @@ export function ListBillsView({
     startNav(() => router.push(`${pathname}${qs}`));
   };
 
-  // Selection & Modal States
-  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
+  const handleDatePreset = (daysAgo: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - daysAgo);
+    setFromDate(toDateInput(start));
+    setToDate(toDateInput(end));
+    const qs = billQueryString(filters, {
+      preset: "custom",
+      from: toDateInput(start),
+      to: toDateInput(end),
+    });
+    startNav(() => router.push(`${pathname}${qs}`));
+  };
+
+  const scrollTable = (offset: number) => {
+    if (tableRef.current) {
+      tableRef.current.scrollBy({ left: offset, behavior: "smooth" });
+    }
+  };
+
+  // Modal States
   const [viewingBill, setViewingBill] = useState<any | null>(null);
   const [printingBill, setPrintingBill] = useState<any | null>(null);
   const [editingBill, setEditingBill] = useState<any | null>(null);
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
-  const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Client-side instant filter on current dataset
   const filteredBills = useMemo(() => {
@@ -139,12 +167,14 @@ export function ListBillsView({
       if (nameQuery.trim()) {
         const q = nameQuery.toLowerCase().trim();
         const matchCust = b.customerName ? b.customerName.toLowerCase().includes(q) : false;
-        if (!matchCust) return false;
+        const custPan = b.customerId ? customerPanById.get(b.customerId) : null;
+        const matchPan = custPan ? custPan.includes(q) : false;
+        if (!matchCust && !matchPan) return false;
       }
 
       return true;
     });
-  }, [bills, statusFilter, fuelFilter, paymentFilter, billQuery, nameQuery]);
+  }, [bills, statusFilter, fuelFilter, paymentFilter, billQuery, nameQuery, customerPanById]);
 
   const sortedBills = useMemo(() => {
     const sorted = [...filteredBills];
@@ -157,16 +187,19 @@ export function ListBillsView({
     return sorted;
   }, [filteredBills, sortField, sortDir]);
 
-  // Recalculated metrics for current filter
+  // Recalculated live metrics for current filter view
   const currentMetrics = useMemo(() => {
     let count = 0;
     let netAmount = 0;
     let netLiters = 0;
+    let taxableAmount = 0;
+    let vatAmount = 0;
     let voidedCount = 0;
     let voidedAmount = 0;
     let cash = 0;
     let online = 0;
     let credit = 0;
+    let card = 0;
 
     for (const b of filteredBills) {
       if (b.voided) {
@@ -176,13 +209,30 @@ export function ListBillsView({
         count++;
         netAmount += b.amount;
         netLiters += b.liters;
+        const { taxable, vat } = vatSplit(b.amount);
+        taxableAmount += taxable;
+        vatAmount += vat;
+
         if (b.payment === "CASH") cash += b.amount;
         else if (b.payment === "ONLINE") online += b.amount;
+        else if (b.payment === "CARD") card += b.amount;
         else if (b.payment === "CREDIT") credit += b.amount;
       }
     }
 
-    return { count, netAmount, netLiters, voidedCount, voidedAmount, cash, online, credit };
+    return {
+      count,
+      netAmount,
+      netLiters,
+      taxableAmount,
+      vatAmount,
+      voidedCount,
+      voidedAmount,
+      cash,
+      online,
+      credit,
+      card,
+    };
   }, [filteredBills]);
 
   // Vehicle History Intelligence
@@ -202,59 +252,61 @@ export function ListBillsView({
     return null;
   }, [billQuery, bills]);
 
-  const handleSelectAll = () => {
-    if (selectedBillIds.size === filteredBills.length) {
-      setSelectedBillIds(new Set());
-    } else {
-      setSelectedBillIds(new Set(filteredBills.map((b) => b.id)));
-    }
-  };
-
-  const handleToggleRow = (id: string) => {
-    setSelectedBillIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const handleExportCSV = () => {
-    const exportRows = selectedBillIds.size > 0
-      ? filteredBills.filter((b) => selectedBillIds.has(b.id))
-      : filteredBills;
+    const exportRows = filteredBills;
 
     const headers = [
-      "Receipt No",
+      "S.No",
       "Bill Number",
-      "Date BS",
+      "Bill Date BS",
       "Time",
+      "Fiscal Year",
+      "Station PAN",
+      "Customer Name",
+      "Customer PAN",
       "Fuel Product",
-      "Volume (Liters)",
+      "Quantity (Liters)",
       "Rate (NPR/L)",
-      "Total Amount (NPR)",
+      "Subtotal (NPR)",
+      "Discount",
+      "Taxable Amount",
+      "VAT (13%)",
+      "Grand Total (NPR)",
       "Payment Mode",
-      "Vehicle Plate",
-      "Customer",
-      "Attendant",
+      "IRD Sync",
+      "Added By",
       "Status",
+      "Vehicle Plate",
     ];
 
-    const rows = exportRows.map((b) => [
-      `"${b.receiptNo}"`,
-      `"${b.billNumber}"`,
-      `"${b.dateBS}"`,
-      `"${b.time}"`,
-      `"${b.fuel}"`,
-      `"${b.liters}"`,
-      `"${b.rate}"`,
-      `"${b.amount}"`,
-      `"${b.payment}"`,
-      `"${b.vehicleNo || ""}"`,
-      `"${b.customerName || "Walk-In"}"`,
-      `"${b.soldBy}"`,
-      `"${b.voided ? "VOIDED RETURN" : "PAID"}"`,
-    ]);
+    const rows = exportRows.map((b, idx) => {
+      const { taxable, vat } = vatSplit(b.amount);
+      const custPan = b.customerId ? customerPanById.get(b.customerId) : "";
+      const fiscalYear = fiscalYearOf(new Date(b.createdAt)) || "2083/84";
+      return [
+        idx + 1,
+        `"${b.billNumber}"`,
+        `"${b.dateBS}"`,
+        `"${b.time}"`,
+        `"${fiscalYear}"`,
+        `"${initialData.invoiceConfig?.panNo || "300066034"}"`,
+        `"${b.customerName || "CASH"}"`,
+        `"${custPan || ""}"`,
+        `"${FUEL_LABEL[b.fuel as FuelId] || b.fuel}"`,
+        b.liters.toFixed(2),
+        b.rate.toFixed(2),
+        taxable.toFixed(2),
+        "0.00",
+        taxable.toFixed(2),
+        vat.toFixed(2),
+        b.amount.toFixed(2),
+        `"${b.payment}"`,
+        `"${b.voided ? "RETURNED" : "YES"}"`,
+        `"${b.soldBy}"`,
+        `"${b.voided ? "VOIDED" : "ACTIVE"}"`,
+        `"${b.vehicleNo || ""}"`,
+      ];
+    });
 
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -262,17 +314,14 @@ export function ListBillsView({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.href = encodedUri;
-    link.download = `bill_register_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `bills_register_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setIsExportOpen(false);
   };
 
   const handleExportIRDAnnexure5 = () => {
-    const exportRows = selectedBillIds.size > 0
-      ? filteredBills.filter((b) => selectedBillIds.has(b.id))
-      : filteredBills;
+    const exportRows = filteredBills;
 
     const headers = [
       "मिति (BS Date)",
@@ -288,19 +337,19 @@ export function ListBillsView({
     ];
 
     const rows = exportRows.map((b) => {
-      const taxable = (b.amount / 1.13).toFixed(2);
-      const vat = (b.amount - Number(taxable)).toFixed(2);
+      const { taxable, vat } = vatSplit(b.amount);
+      const custPan = b.customerId ? customerPanById.get(b.customerId) : "N/A";
       return [
         `"${b.dateBS}"`,
         `"${b.billNumber}"`,
         `"${b.customerName || "Retail Walk-In"}"`,
-        `"N/A"`,
-        `"${FUEL_LABEL[b.fuel as FuelId]}"`,
-        `"${b.liters}"`,
-        `"${b.rate}"`,
-        `"${b.amount}"`,
-        `"${taxable}"`,
-        `"${vat}"`,
+        `"${custPan || "N/A"}"`,
+        `"${FUEL_LABEL[b.fuel as FuelId] || b.fuel}"`,
+        `"${b.liters.toFixed(2)}"`,
+        `"${b.rate.toFixed(2)}"`,
+        `"${b.amount.toFixed(2)}"`,
+        `"${taxable.toFixed(2)}"`,
+        `"${vat.toFixed(2)}"`,
       ];
     });
 
@@ -314,280 +363,459 @@ export function ListBillsView({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setIsExportOpen(false);
   };
 
   const handleBatchPrint = () => {
     window.print();
   };
 
-  const getPaymentBadge = (method: string, custName?: string | null) => {
+  const getPaymentBadge = (method: string) => {
     switch (method) {
       case "CASH":
-        return <Badge tone="success">CASH</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <Banknote size={11} /> Cash
+          </span>
+        );
       case "ONLINE":
-        return <Badge tone="accent">QR / FONEPAY</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <QrCode size={11} /> Fonepay
+          </span>
+        );
       case "CARD":
-        return <Badge tone="accent">POS CARD</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <CreditCard size={11} /> POS Card
+          </span>
+        );
       case "CREDIT":
-        return <Badge tone="muted">{custName || "CREDIT"}</Badge>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            <Building2 size={11} /> Credit
+          </span>
+        );
       default:
         return <Badge tone="muted">{method}</Badge>;
     }
   };
 
+  const stationPan =
+    initialData.invoiceConfig?.panNo ||
+    initialData.invoiceConfig?.vatNo ||
+    "300066034";
+
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
-      {/* 1. Executive Title & Export Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <ListOrdered size={22} />
-          </div>
+    <div className="space-y-4 w-full min-w-0 max-w-full">
+      {/* 1. Header Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <GhostButton
+            type="button"
+            onClick={() => router.back()}
+            className="h-8 px-3 text-xs font-semibold border border-border bg-surface hover:bg-surface-hi flex items-center gap-1.5 cursor-pointer rounded-lg text-text hover:text-accent transition-colors shadow-xs"
+            title="Return to Sales Operations"
+          >
+            <ArrowLeft size={13} /> Back
+          </GhostButton>
+
           <div>
-            <h2 className="font-display text-[18px] font-bold text-text">
-              Bill Register & Sales Ledger (बिक्री बिल दर्ता खाता)
-            </h2>
-            <p className="text-[12px] text-text-muted">
-              Live fuel invoice ledger, thermal duplicate slips, vehicle fleet audit, and IRD statutory reporting.
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-xl sm:text-2xl font-black text-text tracking-tight flex items-center gap-2">
+                Bills <span className="text-accent">Register</span>
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-0.5 text-xs font-semibold text-text-muted font-mono">
+                {filteredBills.length} {filteredBills.length === 1 ? "bill" : "bills"}
+              </span>
+            </div>
+            <p className="text-[11.5px] text-text-muted hidden sm:block">
+              Comprehensive tax invoices, IRD Annexure-5 sales book, audit logs, and reprint center.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {selectedBillIds.size > 0 && (
-            <PrimaryButton
-              type="button"
-              onClick={handleBatchPrint}
-              className="text-[12.5px] px-3 py-1.5"
-            >
-              <Printer size={14} /> Batch Print ({selectedBillIds.size})
-            </PrimaryButton>
-          )}
+        {/* Action Buttons Toolbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <GhostButton
+            type="button"
+            onClick={() => setShowStats((prev) => !prev)}
+            className="h-8 px-3 text-xs font-semibold border border-border bg-surface flex items-center gap-1.5 hover:bg-surface-hi rounded-lg"
+            title="Toggle summary KPI stats"
+          >
+            <TrendingUp size={13} className="text-accent" />
+            <span className="hidden md:inline">{showStats ? "Hide Summary" : "Show Summary"}</span>
+          </GhostButton>
 
-          {/* Export Dropdown */}
-          <div className="relative">
-            <GhostButton
-              type="button"
-              onClick={() => setIsExportOpen(!isExportOpen)}
-              className="text-[12.5px]"
-            >
-              <Download size={14} /> Export Register <span className="text-[10px]">▼</span>
-            </GhostButton>
+          <GhostButton
+            type="button"
+            onClick={handleBatchPrint}
+            className="h-8 px-3 text-xs font-semibold border border-border bg-surface flex items-center gap-1.5 hover:bg-surface-hi rounded-lg"
+            title="Batch Print Current Register"
+          >
+            <Printer size={13} className="text-accent" />
+            <span>Print Register</span>
+          </GhostButton>
 
-            {isExportOpen && (
-              <div className="absolute right-0 top-full mt-1.5 z-40 w-56 rounded-xl border border-border bg-surface p-1.5 shadow-2xl animate-fade-in">
-                <button
-                  type="button"
-                  onClick={handleExportCSV}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-text hover:bg-surface-hi transition-colors"
-                >
-                  <FileSpreadsheet size={14} className="text-success" /> Standard CSV (.csv)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportIRDAnnexure5}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-text hover:bg-surface-hi transition-colors"
-                >
-                  <FileText size={14} className="text-accent" /> IRD Sales Book (अनुसूची ५)
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBatchPrint}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-text hover:bg-surface-hi transition-colors"
-                >
-                  <Printer size={14} className="text-text-muted" /> Print Statement (PDF)
-                </button>
-              </div>
-            )}
-          </div>
+          <GhostButton
+            type="button"
+            onClick={handleExportCSV}
+            className="h-8 px-3 text-xs font-semibold border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5 rounded-lg"
+            title="Export full tabular register to CSV"
+          >
+            <FileSpreadsheet size={13} />
+            <span>Export CSV</span>
+          </GhostButton>
+
+          <GhostButton
+            type="button"
+            onClick={handleExportIRDAnnexure5}
+            className="h-8 px-3 text-xs font-semibold border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 flex items-center gap-1.5 rounded-lg"
+            title="Export official IRD Annexure 5 formatted sales book"
+          >
+            <FileText size={13} />
+            <span>IRD Sales Book</span>
+          </GhostButton>
 
           {canSell && (
             <PrimaryButton
               type="button"
               onClick={() => setIsNewSaleOpen(true)}
-              className="text-[12.5px] px-3.5 py-2"
+              className="h-8 px-3.5 text-xs font-bold flex items-center gap-1.5 shadow-xs rounded-lg"
             >
-              <Plus size={15} /> Create Bill (नयाँ बिल)
+              <Plus size={13} />
+              <span>Create Bill</span>
             </PrimaryButton>
           )}
         </div>
       </div>
 
-      {/* 2. Search, Filter & Slicing Command Strip */}
-      <div className="rounded-2xl border border-border bg-surface p-4 space-y-3.5 shadow-xs">
-        {/* Search By: two distinct fields, plus the status slicer */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-50 flex-1">
-            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
-              <Hash size={12} /> Bill Number / Vehicle
-            </label>
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 transition-colors focus-within:border-accent">
-              <Search size={14} className="text-text-muted shrink-0" />
-              <input
-                type="text"
-                value={billQuery}
-                onChange={(e) => setBillQuery(e.target.value)}
-                placeholder="e.g. 1025 or BA 2 PA 1234"
-                className="w-full bg-transparent text-[13px] text-text focus:outline-none"
-              />
-              {billQuery && (
-                <button type="button" onClick={() => setBillQuery("")} className="shrink-0 text-[11px] text-text-muted hover:text-text">
-                  Clear
-                </button>
-              )}
+      {/* 2. Enterprise KPI Metrics Strip (Compact & Responsive) */}
+      {showStats && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 animate-fade-in">
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              Total Invoiced
+            </span>
+            <div className="font-data font-bold text-[14px] text-text mt-0.5 truncate">
+              {fmtRs(currentMetrics.netAmount)}
+            </div>
+            <span className="text-[9.5px] text-text-muted truncate block">
+              {currentMetrics.count} active sales
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              Taxable Amount
+            </span>
+            <div className="font-data font-bold text-[14px] text-accent mt-0.5 truncate">
+              {fmtRs(currentMetrics.taxableAmount)}
+            </div>
+            <span className="text-[9.5px] text-text-muted truncate block">Pre-tax turnover</span>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              13% VAT Collected
+            </span>
+            <div className="font-data font-bold text-[14px] text-emerald-400 mt-0.5 truncate">
+              {fmtRs(currentMetrics.vatAmount)}
+            </div>
+            <span className="text-[9.5px] text-text-muted truncate block">IRD tax</span>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              Volume Dispensed
+            </span>
+            <div className="font-data font-bold text-[14px] text-text mt-0.5 truncate">
+              {fmtL(currentMetrics.netLiters)}
+            </div>
+            <span className="text-[9.5px] text-text-muted truncate block">Total fuel</span>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              Cash vs Digital
+            </span>
+            <div className="font-data font-semibold text-[11px] text-text mt-0.5 space-y-0.5">
+              <div className="flex justify-between items-center gap-1">
+                <span className="text-text-muted text-[10px]">Cash:</span>
+                <span className="truncate">{fmtRs(currentMetrics.cash)}</span>
+              </div>
+              <div className="flex justify-between items-center gap-1">
+                <span className="text-text-muted text-[10px]">Digital:</span>
+                <span className="truncate">{fmtRs(currentMetrics.online + currentMetrics.card)}</span>
+              </div>
             </div>
           </div>
 
-          <div className="min-w-50 flex-1">
-            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
-              <User size={12} /> Customer Name
-            </label>
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 transition-colors focus-within:border-accent">
-              <Search size={14} className="text-text-muted shrink-0" />
-              <input
-                type="text"
-                value={nameQuery}
-                onChange={(e) => setNameQuery(e.target.value)}
-                placeholder="e.g. Ram Shah"
-                className="w-full bg-transparent text-[13px] text-text focus:outline-none"
-              />
-              {nameQuery && (
-                <button type="button" onClick={() => setNameQuery("")} className="shrink-0 text-[11px] text-text-muted hover:text-text">
-                  Clear
+          <div className="rounded-xl border border-border bg-surface px-2.5 py-2 shadow-xs">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block truncate">
+              Credit & Returns
+            </span>
+            <div className="font-data font-semibold text-[11px] text-text mt-0.5 space-y-0.5">
+              <div className="flex justify-between items-center gap-1">
+                <span className="text-text-muted text-[10px]">Credit:</span>
+                <span className="text-purple-400 truncate">{fmtRs(currentMetrics.credit)}</span>
+              </div>
+              <div className="flex justify-between items-center gap-1">
+                <span className="text-text-muted text-[10px]">Void:</span>
+                <span className="text-error truncate">
+                  {currentMetrics.voidedCount} ({fmtRs(currentMetrics.voidedAmount)})
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Dual Search Panels: "Search by Entity" & "Search by Period" */}
+      <div className="rounded-2xl border border-border bg-surface p-3.5 sm:p-4 space-y-3 shadow-xs w-full max-w-full min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full min-w-0">
+          {/* Left Column: Search by (Bill Number & Customer / PAN) */}
+          <div className="lg:col-span-6 space-y-2 min-w-0">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5 truncate">
+                <Search size={13} className="text-accent shrink-0" /> Search by Entity
+              </h3>
+              {(billQuery || nameQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBillQuery("");
+                    setNameQuery("");
+                  }}
+                  className="text-[11px] text-accent hover:underline cursor-pointer shrink-0"
+                >
+                  Clear search
                 </button>
               )}
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 min-w-0">
+              <div className="min-w-0">
+                <label className="text-[11px] font-semibold text-text-muted block mb-1 truncate">
+                  Bill / Receipt / Plate
+                </label>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Input
+                    value={billQuery}
+                    onChange={(e) => setBillQuery(e.target.value)}
+                    placeholder="e.g. 104, BA-2-PA"
+                    className="h-8 px-2.5 text-xs font-mono min-w-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    className="h-8 w-8 shrink-0 rounded-lg bg-accent text-[#1A1306] flex items-center justify-center hover:bg-accent-hover cursor-pointer shadow-xs"
+                    title="Search Bill Number"
+                  >
+                    <Search size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <label className="text-[11px] font-semibold text-text-muted block mb-1 truncate">
+                  Customer / PAN / Company
+                </label>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Input
+                    value={nameQuery}
+                    onChange={(e) => setNameQuery(e.target.value)}
+                    placeholder="e.g. Acme, 300066034"
+                    className="h-8 px-2.5 text-xs font-medium min-w-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    className="h-8 w-8 shrink-0 rounded-lg bg-accent text-[#1A1306] flex items-center justify-center hover:bg-accent-hover cursor-pointer shadow-xs"
+                    title="Search Customer"
+                  >
+                    <Search size={13} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Quick Status Slicer */}
-          <div className="flex gap-1 rounded-xl border border-border bg-bg p-1 text-[12px]">
-            {(
-              [
-                { id: "all", label: "All Bills" },
-                { id: "active", label: "Active Only" },
-                { id: "voided", label: "Voided Returns" },
-              ] as const
-            ).map((st) => (
-              <button
-                key={st.id}
+          {/* Right Column: Search by date (From Date, To Date, Search Button) */}
+          <div className="lg:col-span-6 space-y-2 border-t lg:border-t-0 lg:border-l border-border/80 pt-3 lg:pt-0 lg:pl-4 min-w-0">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5 truncate">
+                <CalendarRange size={13} className="text-accent shrink-0" /> Search by date
+              </h3>
+
+              {/* Quick Preset Badges */}
+              <div className="flex items-center gap-1 text-[10.5px] shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset(0)}
+                  className="px-1.5 py-0.5 rounded bg-surface-hi hover:bg-border text-text-muted hover:text-text cursor-pointer"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset(7)}
+                  className="px-1.5 py-0.5 rounded bg-surface-hi hover:bg-border text-text-muted hover:text-text cursor-pointer"
+                >
+                  7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset(30)}
+                  className="px-1.5 py-0.5 rounded bg-surface-hi hover:bg-border text-text-muted hover:text-text cursor-pointer"
+                >
+                  30 Days
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 min-w-0">
+              <div className="flex-1 min-w-[100px]">
+                <label className="text-[11px] font-semibold text-text-muted block mb-1 truncate">
+                  From Date
+                </label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-8 px-2.5 text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex-1 min-w-[100px]">
+                <label className="text-[11px] font-semibold text-text-muted block mb-1 truncate">
+                  To Date
+                </label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-8 px-2.5 text-xs font-mono"
+                />
+              </div>
+
+              <PrimaryButton
                 type="button"
-                onClick={() => setStatusFilter(st.id)}
-                className={clsx(
-                  "rounded-lg px-3 py-1.5 font-semibold transition-colors",
-                  statusFilter === st.id
-                    ? "bg-accent/15 text-accent"
-                    : "text-text-muted hover:text-text"
-                )}
+                onClick={handleDateSearch}
+                disabled={isNavPending}
+                className="h-8 px-4 text-xs font-bold rounded-lg shadow-xs bg-accent text-[#1A1306] hover:bg-accent-hover cursor-pointer shrink-0"
               >
-                {st.label}
-              </button>
-            ))}
+                {isNavPending ? "…" : "Search"}
+              </PrimaryButton>
+            </div>
           </div>
         </div>
 
-        {/* Search by Date + Sort */}
-        <div className="flex flex-wrap items-end gap-3 border-t border-border pt-3.5">
-          <div>
-            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
-              <CalendarRange size={12} /> From Date
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
-              To Date
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
-            />
-          </div>
-          <PrimaryButton
-            type="button"
-            onClick={handleDateSearch}
-            disabled={isNavPending}
-            className="px-4 py-1.75 text-[12px]"
-          >
-            {isNavPending ? "Loading…" : "Search"}
-          </PrimaryButton>
+        {/* Quick Filters Row: Fuel, Payment, Sort By & Status */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-border/80 pt-2.5 text-xs w-full min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-1 text-text-muted">
+              <Filter size={13} className="text-accent shrink-0" /> <span>Fuel:</span>
+              <select
+                value={fuelFilter}
+                onChange={(e) => setFuelFilter(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-bg px-2 text-xs font-medium font-sans text-text focus:outline-none focus:border-accent cursor-pointer"
+              >
+                <option value="ALL">All Fuel Types</option>
+                <option value="PETROL">Petrol (MS)</option>
+                <option value="DIESEL">Diesel (HSD)</option>
+                <option value="CNG">CNG / AutoGas</option>
+              </select>
+            </div>
 
-          <div className="ml-1">
-            <label className="mb-1 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-text-muted">
-              <ArrowUpDown size={12} /> Sort By
-            </label>
-            <div className="flex gap-1.5">
+            <div className="flex items-center gap-1 text-text-muted">
+              <span>Payment:</span>
               <select
-                value={sortField}
-                onChange={(e) => setSortField(e.target.value as SortField)}
-                className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-bg px-2 text-xs font-medium font-sans text-text focus:outline-none focus:border-accent/80 cursor-pointer"
               >
-                <option value="date">Date</option>
-                <option value="receipt">Bill No</option>
-                <option value="amount">Amount</option>
+                <option value="ALL">All Modes</option>
+                <option value="CASH">Cash</option>
+                <option value="ONLINE">QR / Fonepay</option>
+                <option value="CARD">POS / Card</option>
+                <option value="CREDIT">Credit Ledger</option>
               </select>
-              <select
-                value={sortDir}
-                onChange={(e) => setSortDir(e.target.value as SortDir)}
-                className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
-              >
-                <option value="desc">Newest first</option>
-                <option value="asc">Oldest first</option>
-              </select>
+            </div>
+
+            <div className="flex items-center gap-1 text-text-muted border-l border-border/80 pl-2">
+              <ArrowUpDown size={12} className="shrink-0" /> <span>Sort:</span>
+              <div className="flex items-center gap-1">
+                <select
+                  value={sortField}
+                  onChange={(e) => setSortField(e.target.value as SortField)}
+                  className="h-8 rounded-lg border border-border bg-bg px-1.5 text-xs font-medium font-sans text-text focus:outline-none focus:border-accent/80 cursor-pointer"
+                >
+                  <option value="date">Date</option>
+                  <option value="receipt">Bill No</option>
+                  <option value="amount">Amount</option>
+                </select>
+                <select
+                  value={sortDir}
+                  onChange={(e) => setSortDir(e.target.value as SortDir)}
+                  className="h-8 rounded-lg border border-border bg-bg px-1.5 text-xs font-medium font-sans text-text focus:outline-none focus:border-accent/80 cursor-pointer"
+                >
+                  <option value="desc">DESC</option>
+                  <option value="asc">ASC</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <span className="ml-auto pb-1.5 text-[12px] text-text-muted font-data">
-            Register window: <strong className="text-text">{toDateInput(filters.range.from)}</strong> to{" "}
-            <strong className="text-text">{toDateInput(filters.range.to)}</strong>
-          </span>
-        </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Status Pills */}
+            <div className="flex items-center gap-0.5 rounded-xl border border-border bg-bg p-0.5 text-xs">
+              {(
+                [
+                  { id: "all", label: "All Bills" },
+                  { id: "active", label: "Active Only" },
+                  { id: "voided", label: "Voided" },
+                ] as const
+              ).map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setStatusFilter(st.id)}
+                  className={clsx(
+                    "rounded-lg px-2 py-1 font-semibold transition-colors cursor-pointer text-[11.5px]",
+                    statusFilter === st.id
+                      ? "bg-accent/15 text-accent"
+                      : "text-text-muted hover:text-text"
+                  )}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Dropdown Filters Strip */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-[12.5px]">
-          <div className="flex items-center gap-1.5 text-text-muted">
-            <Filter size={13} /> Fuel:
+            {/* Quick Horizontal Scroll Controls */}
+            <div className="flex items-center gap-1 pl-1">
+              <button
+                type="button"
+                onClick={() => scrollTable(-280)}
+                className="h-7.5 w-7.5 rounded-lg border border-border bg-bg text-text-muted hover:text-accent hover:border-accent/60 flex items-center justify-center cursor-pointer transition-colors"
+                title="Scroll Table Left"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollTable(280)}
+                className="h-7.5 w-7.5 rounded-lg border border-border bg-bg text-text-muted hover:text-accent hover:border-accent/60 flex items-center justify-center cursor-pointer transition-colors"
+                title="Scroll Table Right"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
-          <select
-            value={fuelFilter}
-            onChange={(e) => setFuelFilter(e.target.value)}
-            className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
-          >
-            <option value="ALL">All Fuel Types</option>
-            <option value="PETROL">Petrol (MS 91)</option>
-            <option value="DIESEL">Diesel (HSD)</option>
-            <option value="CNG">CNG</option>
-          </select>
-
-          <div className="flex items-center gap-1.5 text-text-muted ml-2">
-            Payment Mode:
-          </div>
-          <select
-            value={paymentFilter}
-            onChange={(e) => setPaymentFilter(e.target.value)}
-            className="rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text"
-          >
-            <option value="ALL">All Payment Modes</option>
-            <option value="CASH">Cash (नगद)</option>
-            <option value="ONLINE">QR / Wallet (Fonepay/eSewa)</option>
-            <option value="CARD">Card / POS</option>
-            <option value="CREDIT">Credit (खाता)</option>
-          </select>
-
-          <span className="text-[12px] text-text-muted ml-auto font-data">
-            Showing <strong>{filteredBills.length}</strong> of {bills.length} invoices
-          </span>
         </div>
       </div>
 
-      {/* 4. Vehicle History Intelligence Card */}
+      {/* 4. Vehicle Intelligence Summary Card (if searched by plate) */}
       {vehicleStats && (
         <div className="animate-fade-in flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
           <div className="flex items-center gap-3">
@@ -597,7 +825,7 @@ export function ListBillsView({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-display font-bold text-text text-[15px]">
-                  Vehicle Fleet Consumption:
+                  Vehicle Fleet Record:
                 </span>
                 <span className="font-mono bg-bg px-2.5 py-0.5 rounded text-[13px] font-bold text-accent">
                   {vehicleStats.plate}
@@ -616,49 +844,53 @@ export function ListBillsView({
         </div>
       )}
 
-      {/* 5. The Master Bill Register Data Table */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[12.5px] min-w-295">
-            <thead className="border-b border-border bg-surface-hi text-[11px] font-semibold uppercase tracking-wider text-text-muted font-data">
-              <tr>
-                <th className="px-3 py-3 text-center w-10">
-                  <button type="button" onClick={handleSelectAll} className="cursor-pointer">
-                    {selectedBillIds.size === filteredBills.length && filteredBills.length > 0 ? (
-                      <CheckSquare size={15} className="text-accent" />
-                    ) : (
-                      <Square size={15} className="text-text-muted" />
-                    )}
-                  </button>
+      {/* 5. Master Ledger Register Table */}
+      <div className="flex flex-col rounded-2xl border border-border bg-surface shadow-xs overflow-hidden">
+        {/* Table Viewport with Always-Visible Horizontal & Vertical Scrollbars */}
+        <div
+          ref={tableRef}
+          className="overflow-auto max-h-[calc(100vh-280px)] min-h-[440px] scrollbar-custom pb-2"
+        >
+          <table className="w-full text-left text-[12px] min-w-[1460px] border-collapse">
+            <thead className="sticky top-0 z-20 border-b border-border bg-surface-hi text-[10.5px] font-bold uppercase tracking-wider text-text-muted font-data shadow-xs">
+              <tr className="whitespace-nowrap">
+                <th className="px-1.5 py-2 text-center w-8 text-[9px]">#</th>
+                <th className="px-2 py-2 min-w-[105px] text-[9px]">Bill No.</th>
+                <th className="px-2.5 py-2.5 min-w-[95px]">Bill Date</th>
+                <th className="px-2.5 py-2.5">Fiscal Year</th>
+                <th className="px-2.5 py-2.5">Station PAN</th>
+                <th className="px-2.5 py-2.5 min-w-[150px]">Customer Name</th>
+                <th className="px-2.5 py-2.5">Customer PAN</th>
+                <th className="px-2.5 py-2.5 text-right">Subtotal</th>
+                <th className="px-2 py-2.5 text-right">Discount</th>
+                <th className="px-2.5 py-2.5 text-right">Taxable</th>
+                <th className="px-2.5 py-2.5 text-right">VAT (13%)</th>
+                <th className="px-3 py-2.5 text-right font-bold">Grand Total</th>
+                <th className="px-2.5 py-2.5 text-center">IRD Sync</th>
+                <th className="px-2.5 py-2.5">Added By</th>
+                <th className="px-2 py-2.5 text-center">Status</th>
+                <th className="px-2 py-2.5 text-center">Print Audit</th>
+                <th className="px-2.5 py-2.5">Payment</th>
+                <th className="px-3 py-2.5 text-right sticky top-0 right-0 z-30 bg-surface-hi shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.12)] min-w-[150px]">
+                  Print / Actions
                 </th>
-                <th className="px-2 py-3 text-center">S.NO</th>
-                <th className="px-3 py-3">RECEIPT</th>
-                <th className="px-3 py-3">DATE (BS) & TIME</th>
-                <th className="px-3 py-3">FISCAL YR</th>
-                <th className="px-3 py-3">VEHICLE</th>
-                <th className="px-3 py-3">CUSTOMER</th>
-                <th className="px-3 py-3">CUSTOMER PAN</th>
-                <th className="px-3 py-3">FUEL</th>
-                <th className="px-3 py-3 text-right">VOLUME</th>
-                <th className="px-3 py-3 text-right">RATE</th>
-                <th className="px-3 py-3 text-right">TAXABLE</th>
-                <th className="px-3 py-3 text-right">VAT</th>
-                <th className="px-4 py-3 text-right font-bold">GRAND TOTAL</th>
-                <th className="px-3 py-3 text-center">PAYMENT</th>
-                <th className="px-3 py-3">ADDED BY</th>
-                <th className="px-3 py-3 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border font-data">
               {sortedBills.length === 0 ? (
                 <tr>
-                  <td colSpan={17} className="py-12 text-center text-text-muted font-body">
-                    No bills found matching the selected filters.
+                  <td colSpan={18} className="py-14 text-center text-text-muted font-body">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Receipt size={32} className="text-text-muted/40" />
+                      <p className="font-semibold text-[13px] text-text">No bills found</p>
+                      <p className="text-[11.5px] max-w-sm text-text-muted">
+                        No transactions match the selected date range and filters. Try adjusting your query or date window.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 sortedBills.map((b, idx) => {
-                  const isChecked = selectedBillIds.has(b.id);
                   const fuelId = b.fuel as FuelId;
                   const { taxable, vat } = vatSplit(b.amount);
                   const fiscalYear = fiscalYearOf(new Date(b.createdAt));
@@ -668,123 +900,153 @@ export function ListBillsView({
                     <tr
                       key={b.id}
                       className={clsx(
-                        "hover:bg-surface-hi/70 transition-colors",
-                        isChecked && "bg-accent/5",
+                        "group hover:bg-surface-hi/70 transition-colors whitespace-nowrap",
                         b.voided && "opacity-60 bg-error/5"
                       )}
                     >
-                      <td className="px-3 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleRow(b.id)}
-                          className="cursor-pointer"
-                        >
-                          {isChecked ? (
-                            <CheckSquare size={15} className="text-accent" />
-                          ) : (
-                            <Square size={15} className="text-text-muted" />
-                          )}
-                        </button>
-                      </td>
+                      {/* S. No. */}
+                      <td className="px-1.5 py-1.5 text-center text-text-muted font-mono text-[9px]">{idx + 1}</td>
 
-                      <td className="px-2 py-3 text-center text-text-muted">{idx + 1}</td>
-
-                      <td className="px-3 py-3 font-mono font-bold text-accent">
+                      {/* Bill No. + Cancel Button */}
+                      <td className="px-2 py-1.5 font-mono">
                         <button
                           type="button"
                           onClick={() => setViewingBill(b)}
-                          className="hover:underline cursor-pointer"
-                          title="Click to view full bill details"
+                          className="font-bold text-accent hover:underline cursor-pointer block text-left text-[10px] leading-tight"
+                          title="Click to view full invoice audit details"
                         >
-                          #{b.receiptNo}
+                          {b.billNumber || `#${b.receiptNo}`}
                         </button>
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <div className="font-semibold text-text">{b.dateBS}</div>
-                        <div className="text-[11px] text-text-muted">{b.time}</div>
-                      </td>
-
-                      <td className="px-3 py-3 font-body text-text-muted">
-                        {fiscalYear ?? "—"}
-                      </td>
-
-                      <td className="px-3 py-3 font-body">
-                        {b.vehicleNo ? (
-                          <span className="font-mono bg-bg border border-border px-2 py-0.5 rounded text-[11.5px] font-bold text-text">
-                            {b.vehicleNo}
+                        {b.voided ? (
+                          <span className="inline-block mt-0.5 text-[8px] font-bold text-error uppercase leading-none">
+                            Voided Return
                           </span>
-                        ) : (
-                          <span className="text-[11.5px] text-text-muted">—</span>
+                        ) : canVoid ? (
+                          <VoidSaleButton
+                            saleId={b.id}
+                            receiptNo={b.receiptNo}
+                            label="Cancel this bill"
+                          />
+                        ) : null}
+                      </td>
+
+                      {/* Bill Date */}
+                      <td className="px-2.5 py-2 font-medium text-text">
+                        <div>{b.dateBS}</div>
+                        <div className="text-[10.5px] text-text-muted">{b.time}</div>
+                      </td>
+
+                      {/* Fiscal Year */}
+                      <td className="px-2.5 py-2 font-body text-text-muted">
+                        {fiscalYear ?? "2083/84"}
+                      </td>
+
+                      {/* Station PAN */}
+                      <td className="px-2.5 py-2 font-mono text-[11.5px] text-text-muted">
+                        {stationPan}
+                      </td>
+
+                      {/* Customer Name */}
+                      <td className="px-2.5 py-2 font-body font-medium text-text">
+                        <div className="truncate max-w-[170px]" title={b.customerName || "CASH"}>
+                          {b.customerName || "CASH"}
+                        </div>
+                        {b.vehicleNo && (
+                          <div className="text-[10.5px] font-mono text-text-muted">
+                            {b.vehicleNo}
+                          </div>
                         )}
                       </td>
 
-                      <td className="px-3 py-3 font-body font-medium text-text">
-                        {b.customerName || (
-                          <span className="text-text-muted text-[11.5px]">Walk-In Cash</span>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-3 font-mono text-[11.5px] text-text-muted">
+                      {/* Customer PAN */}
+                      <td className="px-2.5 py-2 font-mono text-[11.5px] text-text-muted">
                         {customerPan || "—"}
                       </td>
 
-                      <td className="px-3 py-3 font-body">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={clsx(
-                              "h-2 w-2 rounded-full",
-                              fuelId === "PETROL"
-                                ? "bg-amber-500"
-                                : fuelId === "DIESEL"
-                                ? "bg-blue-500"
-                                : "bg-emerald-500"
-                            )}
-                          />
-                          <span className="font-medium text-text">{FUEL_LABEL[fuelId]}</span>
+                      {/* Subtotal */}
+                      <td className="px-2.5 py-2 text-right text-text-muted">
+                        {taxable.toFixed(2)}
+                      </td>
+
+                      {/* Discount */}
+                      <td className="px-2 py-2 text-right text-text-muted">0.00</td>
+
+                      {/* Taxable Amount */}
+                      <td className="px-2.5 py-2 text-right text-text-muted font-medium">
+                        {taxable.toFixed(2)}
+                      </td>
+
+                      {/* VAT */}
+                      <td className="px-2.5 py-2 text-right text-text-muted font-medium">
+                        {vat.toFixed(2)}
+                      </td>
+
+                      {/* Grand Total */}
+                      <td
+                        className={clsx(
+                          "px-3 py-2 text-right font-bold text-[13px]",
+                          b.voided ? "line-through text-text-muted" : "text-text font-black"
+                        )}
+                      >
+                        {b.amount.toFixed(2)}
+                      </td>
+
+                      {/* IRD Sync */}
+                      <td className="px-2.5 py-2 text-center">
+                        <span
+                          className={clsx(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase",
+                            b.voided
+                              ? "bg-error/10 text-error"
+                              : "bg-emerald-500/10 text-emerald-400"
+                          )}
+                        >
+                          {b.voided ? "RETURNED" : "YES"}
+                        </span>
+                      </td>
+
+                      {/* Added By */}
+                      <td className="px-2.5 py-2 font-body text-[11.5px] text-text-muted uppercase">
+                        {b.soldBy || "SUPER ADMIN"}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-2 py-2 text-center font-body">
+                        <span
+                          className={clsx(
+                            "text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded",
+                            b.voided
+                              ? "bg-error/15 text-error"
+                              : "bg-emerald-500/15 text-emerald-400"
+                          )}
+                        >
+                          {b.voided ? "voided" : "active"}
+                        </span>
+                      </td>
+
+                      {/* Print Audit */}
+                      <td className="px-2 py-2 text-center font-body text-[11px] text-text-muted">
+                        <div className="font-mono font-bold text-text">1x</div>
+                        <div className="text-[10px] truncate max-w-[85px]" title={b.createdAt}>
+                          {b.dateBS}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-right font-medium text-text">
-                        {fmtL(b.liters)}
+                      {/* Payment */}
+                      <td className="px-2.5 py-2 font-body">
+                        {getPaymentBadge(b.payment)}
                       </td>
 
-                      <td className="px-3 py-3 text-right text-text-muted">
-                        Rs {b.rate.toFixed(2)}
-                      </td>
-
-                      <td className="px-3 py-3 text-right text-text-muted">
-                        {fmtRs(taxable)}
-                      </td>
-
-                      <td className="px-3 py-3 text-right text-text-muted">
-                        {fmtRs(vat)}
-                      </td>
-
+                      {/* Print / Actions */}
                       <td
                         className={clsx(
-                          "px-4 py-3 text-right font-bold text-[13.5px]",
-                          b.voided ? "line-through text-text-muted" : "text-text"
+                          "px-3 py-2 text-right font-body sticky right-0 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] z-10 transition-colors min-w-[150px]",
+                          b.voided
+                            ? "bg-surface"
+                            : "bg-surface group-hover:bg-surface-hi"
                         )}
                       >
-                        {fmtRs(b.amount)}
-                      </td>
-
-                      <td className="px-3 py-3 text-center font-body">
-                        {b.voided ? (
-                          <Badge tone="error">VOIDED</Badge>
-                        ) : (
-                          getPaymentBadge(b.payment, b.customerName)
-                        )}
-                      </td>
-
-                      <td className="px-3 py-3 font-body text-[12px] text-text-muted">
-                        {b.soldBy}
-                      </td>
-
-                      <td className="px-3 py-3 text-right font-body">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Print Duplicate Button */}
+                        <div className="flex items-center justify-end gap-1.5">
                           <GhostButton
                             type="button"
                             onClick={() =>
@@ -803,13 +1065,12 @@ export function ListBillsView({
                                 createdAt: b.createdAt,
                               })
                             }
-                            className="px-2 py-1 text-[11.5px]"
-                            title="Print Duplicate Receipt"
+                            className="p-1 text-text-muted hover:text-accent rounded-lg"
+                            title="Print Duplicate Receipt Slip"
                           >
-                            <Printer size={13} />
+                            <Printer size={14} />
                           </GhostButton>
 
-                          {/* Edit Bill Button */}
                           {canVoid && !b.voided && (
                             <GhostButton
                               type="button"
@@ -829,27 +1090,21 @@ export function ListBillsView({
                                   createdAt: b.createdAt,
                                 })
                               }
-                              className="px-2 py-1 text-[11.5px]"
-                              title="Edit Bill Information"
+                              className="p-1 text-text-muted hover:text-text rounded-lg"
+                              title="Edit Bill"
                             >
-                              <Edit size={13} />
+                              <Edit size={14} />
                             </GhostButton>
                           )}
 
-                          {/* View Details Drawer */}
                           <GhostButton
                             type="button"
                             onClick={() => setViewingBill(b)}
-                            className="px-2 py-1 text-[11.5px]"
-                            title="View Full Bill Details"
+                            className="px-2 py-1 text-[11px] font-bold rounded-lg border border-border hover:border-accent/60"
+                            title="View Full Bill Details & Tax Invoice"
                           >
                             View
                           </GhostButton>
-
-                          {/* Void Action */}
-                          {canVoid && !b.voided && (
-                            <VoidSaleButton saleId={b.id} receiptNo={b.receiptNo} />
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -858,6 +1113,32 @@ export function ListBillsView({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Master Ledger Bottom Footer with Record Counter and Totals */}
+        <div className="border-t border-border bg-surface-hi/90 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs font-data">
+          <div className="flex items-center gap-3 text-text-muted">
+            <span>
+              Showing <strong className="text-text font-mono">{sortedBills.length}</strong> of{" "}
+              <strong className="text-text font-mono">{bills.length}</strong> bills
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-text-muted text-[11px] font-sans">
+            <span className="hidden md:inline">← Drag horizontal slider or use [ <ChevronLeft size={10} className="inline" /> / <ChevronRight size={10} className="inline" /> ] to navigate all 19 columns →</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-text-muted">
+            <span>
+              Taxable: <strong className="text-text font-mono">{fmtRs(currentMetrics.taxableAmount)}</strong>
+            </span>
+            <span>
+              VAT 13%: <strong className="text-emerald-400 font-mono">{fmtRs(currentMetrics.vatAmount)}</strong>
+            </span>
+            <span>
+              Turnover: <strong className="text-accent font-mono font-black">{fmtRs(currentMetrics.netAmount)}</strong>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -895,7 +1176,7 @@ export function ListBillsView({
           customers={initialData.customers}
           onClose={() => setEditingBill(null)}
           onSaved={() => {
-            // Updated in DB via server action
+            // Live saved in DB via server action
           }}
         />
       )}

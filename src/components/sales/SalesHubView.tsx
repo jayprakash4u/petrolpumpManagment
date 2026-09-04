@@ -184,7 +184,7 @@ export function SalesHubView({
   };
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-5 w-full">
       {/* 1. Header Bar: Title, Search, Export & New Sale Action */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-4 shadow-xs">
         <div className="flex items-center gap-3">

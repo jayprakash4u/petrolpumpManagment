@@ -9,7 +9,7 @@ export default async function ApprovalSubmitPage() {
   const user = await requireUser();
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <ApprovalSubnav />
 
       <Card className="mb-6">

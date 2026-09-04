@@ -130,7 +130,6 @@ export function EditBillModal({
               id="editVehicleNo"
               value={vehicleNo}
               onChange={(e) => setVehicleNo(e.target.value)}
-              placeholder="e.g. BA 2 PA 1234 / GA 1 KHA 9021"
             />
           </Field>
 
@@ -172,7 +171,6 @@ export function EditBillModal({
                 id="editBuyerName"
                 value={buyerName}
                 onChange={(e) => setBuyerName(e.target.value)}
-                placeholder="e.g. Yani International Pvt Ltd / Walk-In Retail"
               />
             </Field>
           )}
@@ -203,7 +201,6 @@ export function EditBillModal({
                 id="editPaymentRef"
                 value={paymentRef}
                 onChange={(e) => setPaymentRef(e.target.value)}
-                placeholder="e.g. Fonepay Ref / POS Auth Slip #"
               />
             </Field>
           )}
@@ -214,7 +211,6 @@ export function EditBillModal({
               id="editRemarks"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="e.g. Verified odometer / Dispensed on forecourt nozzle 2"
             />
           </Field>
 
@@ -226,7 +222,6 @@ export function EditBillModal({
             <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Corrected vehicle license plate / Reassigned to corporate khata"
               required
               minLength={3}
             />

@@ -148,7 +148,7 @@ export function VehicleBillingView({
   };
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto animate-fade-in">
+    <div className="space-y-4 w-full animate-fade-in">
       {/* 1. Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/80 pb-3">
         <div className="flex items-center gap-3">

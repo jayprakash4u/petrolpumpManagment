@@ -28,6 +28,7 @@ export default async function BillExportPage({ searchParams }: PageProps<"/sales
       initialFilters={filters}
       basePath="/sales/export"
       bills={data.bills}
+      customers={data.customers}
       rangeLabel={describeRange(filters.range)}
     />
   );

@@ -90,18 +90,6 @@ export function ExpensesTable({ expenses }: { expenses: StationExpense[] }) {
     return true;
   });
 
-  const totals = filtered.reduce(
-    (acc, e) => {
-      const subTotal = (e.taxableAmount ?? 0) + (e.nonTaxableAmount ?? 0);
-      acc.subTotal += subTotal;
-      acc.taxable += e.taxableAmount ?? 0;
-      acc.tax += e.vatAmount ?? 0;
-      acc.grandTotal += e.grandTotal ?? e.amountNpr;
-      return acc;
-    },
-    { subTotal: 0, taxable: 0, tax: 0, grandTotal: 0 }
-  );
-
   const handleReturn = (id: string) => {
     if (!confirm("Mark this expense as returned/reversed?")) return;
     const updated = list.map((e) => (e.id === id ? { ...e, returned: true } : e));
@@ -229,26 +217,6 @@ export function ExpensesTable({ expenses }: { expenses: StationExpense[] }) {
               Add Expense
             </PrimaryButton>
           </Link>
-        </div>
-      </div>
-
-      {/* Summary Strip */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-xs text-text-muted">Subtotal Purchase Price</div>
-          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.subTotal)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-xs text-text-muted">Taxable Amount</div>
-          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.taxable)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-xs text-text-muted">Tax Amount (VAT)</div>
-          <div className="font-data mt-1 text-lg font-bold text-text">{fmtRs(totals.tax)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-xs text-text-muted">Total Purchase Price</div>
-          <div className="font-data mt-1 text-lg font-bold text-accent">{fmtRs(totals.grandTotal)}</div>
         </div>
       </div>
 

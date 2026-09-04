@@ -20,11 +20,11 @@ export default async function FleetAuthorizePage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <CorporateSubnav />
 
       {/* Notice Banner */}
-      <div className="mx-auto mb-5 max-w-2xl flex items-start gap-2.5 rounded-xl border border-border bg-surface px-4 py-3">
+      <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-border bg-surface px-4 py-3">
         <Info size={16} className="mt-0.5 shrink-0 text-accent" />
         <p className="text-xs leading-relaxed text-text-muted">
           Enter the vehicle registration plate before starting the dispenser pump. The system validates whether the

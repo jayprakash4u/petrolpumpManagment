@@ -9,7 +9,7 @@ export default async function NewExpensePage() {
   await requireUser();
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <PurchaseSubnav />
 
       <Card>

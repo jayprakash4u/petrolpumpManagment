@@ -20,7 +20,7 @@ export default async function IssueCouponsPage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <CouponSubnav />
 
       {/* Notice Banner */}

@@ -1,13 +1,10 @@
-import { FilePen } from "lucide-react";
 import { requireUser } from "@/lib/dal";
 import { can } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
-import { SectionTitle } from "@/components/ui/SectionTitle";
 import { PurchaseSubnav } from "@/components/purchases/PurchaseSubnav";
-import { EditPurchaseRegisterView } from "@/components/purchases/EditPurchaseRegisterView";
-import { getPurchaseRegisterData, parsePurchaseRegisterFilters } from "@/lib/queries/purchase-register";
+import { CombinedPurchaseReportView } from "@/components/purchases/CombinedPurchaseReportView";
 
-export default async function EditPurchaseReportPage({ searchParams }: PageProps<"/purchases/report/edit">) {
+export default async function EditPurchaseReportPage() {
   const user = await requireUser();
 
   if (!can(user.role, "recordPurchase")) {
@@ -19,22 +16,23 @@ export default async function EditPurchaseReportPage({ searchParams }: PageProps
     );
   }
 
-  const params = await searchParams;
-  const filters = parsePurchaseRegisterFilters(params);
-  const data = await getPurchaseRegisterData(filters);
+  const stationName = user.station?.name || "Nepal Petroleum Center";
+  const stationAddress = user.station?.address || "Kathmandu, Nepal";
+  const stationPan = (user.station as any)?.panNo || "300054891";
 
   return (
-    <div>
-      <PurchaseSubnav />
+    <div className="space-y-4">
+      <div className="print:hidden">
+        <PurchaseSubnav />
+      </div>
 
-      <Card>
-        <SectionTitle
-          icon={FilePen}
-          title="Edit Petrol Diesel Purchase Report"
-          subtitle="Correct the bill number, supplier, PAN, tanker, or remarks on a recorded purchase"
-        />
-        <EditPurchaseRegisterView data={data} />
-      </Card>
+      <CombinedPurchaseReportView
+        title="Edit Petrol/diesel Purchase Report"
+        stationPan={stationPan}
+        stationName={stationName}
+        stationAddress={stationAddress}
+      />
     </div>
   );
 }
+

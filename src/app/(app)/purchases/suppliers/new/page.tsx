@@ -9,15 +9,13 @@ export default async function NewSupplierPage() {
   await requireUser();
 
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <PurchaseSubnav />
 
-      <div className="mx-auto max-w-2xl">
-        <Card>
-          <SectionTitle icon={UserPlus} title="Add Supplier" subtitle="Register a fuel, insurance, transport, or inventory vendor" />
-          <AddSupplierForm />
-        </Card>
-      </div>
+      <Card>
+        <SectionTitle icon={UserPlus} title="Add Supplier" subtitle="Register a fuel, insurance, transport, or inventory vendor" />
+        <AddSupplierForm />
+      </Card>
     </div>
   );
 }

@@ -18,18 +18,20 @@ export default async function PetrolDieselPurchasePage() {
   const data = await getFuelPurchasesPageData();
 
   return (
-    <div>
+    <div className="space-y-6">
       <PurchaseSubnav />
 
-      <Card className="mb-4">
-        <SectionTitle icon={Fuel} title="Petrol / Diesel Purchase" />
-        <PurchaseBillEntryForm tanks={data.tankOptions} />
-      </Card>
+      <PurchaseBillEntryForm tanks={data.tankOptions} />
 
       <Card>
-        <SectionTitle icon={ListOrdered} title="Delivery History" subtitle="Every tanker received, cost per litre and margin at today's rate" />
+        <SectionTitle
+          icon={ListOrdered}
+          title="Delivery History"
+          subtitle="Every tanker received, cost per litre and margin at today's rate"
+        />
         <FuelPurchasesTable deliveries={data.deliveries} />
       </Card>
     </div>
   );
 }
+

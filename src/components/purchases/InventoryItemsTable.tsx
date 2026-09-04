@@ -107,35 +107,35 @@ export function InventoryItemsTable({ items }: { items: InventoryItem[] }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg p-3">
         <div className="flex flex-wrap items-center gap-3">
           {/* Search Box by Code and Item Name */}
-          <div className="relative w-[240px] sm:w-[280px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <div className="relative w-48 sm:w-64">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             <Input
-              placeholder="Search by code, SKU or name..."
+              placeholder="Search code, SKU or name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="py-1.5 pl-8 text-xs"
+              className="h-8 pl-8 pr-7 text-xs font-medium w-full"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text"
+                className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-text-muted hover:text-text text-xs"
               >
-                <X size={13} />
+                ✕
               </button>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-semibold text-text-muted">
-            <Filter size={13} />
-            <span>CATEGORY:</span>
+            <Filter size={13} className="text-accent" />
+            <span>Category:</span>
           </div>
 
           <div className="w-[180px]">
-            <Select
+            <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="py-1.5 text-xs"
+              className="h-8 w-full rounded-lg border border-border bg-surface px-2 text-xs font-sans text-text focus:outline-none focus:border-accent cursor-pointer"
             >
               <option value="ALL">All Categories</option>
               {categories.map((c) => (
@@ -143,17 +143,17 @@ export function InventoryItemsTable({ items }: { items: InventoryItem[] }) {
                   {c}
                 </option>
               ))}
-            </Select>
+            </select>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-text-muted">
-            Stock Valuation: <strong className="font-data text-accent">{fmtRs(totalCostValue)}</strong>
+            Stock Valuation: <strong className="font-data text-accent font-bold">{fmtRs(totalCostValue)}</strong>
           </span>
-          <PrimaryButton onClick={() => setModalOpen(true)} className="gap-1.5 text-xs">
-            <Plus size={15} />
-            Add Inventory Item
+          <PrimaryButton onClick={() => setModalOpen(true)} className="h-8 px-3 text-xs font-bold gap-1.5 rounded-lg shadow-xs">
+            <Plus size={13} />
+            Add SKU Item
           </PrimaryButton>
         </div>
       </div>

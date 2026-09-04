@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const cashCreditText = `${formatCompactRs(cashNum)} / ${formatCompactRs(creditNum)}`;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 w-full">
       {/* Low Stock Alert if any tank is below safety buffer */}
       {data.lowStockTanks.length > 0 && (
         <div className="animate-fade-in flex items-center justify-between rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-text">
